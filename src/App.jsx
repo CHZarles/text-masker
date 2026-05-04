@@ -374,40 +374,35 @@ function renderSelectableLines(textLines, selectedLines, onToggle) {
   )
 }
 
-// 渲染选中行的掩码内容
+// 渲染选中行的掩码内容（只显示选中的行）
 function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndices, revealedIndices, onReveal) {
+  const sortedSelected = [...selectedLines].sort((a, b) => a - b)
+
   return (
     <div className="line-masked-display">
-      {textLines.map((line, index) => {
-        if (selectedLines.has(index)) {
-          // 计算这一行在全文中的位置
-          let lineStart = 0
-          for (let i = 0; i < index; i++) {
-            lineStart += textLines[i].length + 1
-          }
-          const lineEnd = lineStart + line.length
-
-          // 找出这一行的 tokens
-          const lineTokenIndices = []
-          tokens.forEach((token, tokenIdx) => {
-            if (token.start >= lineStart && token.end <= lineEnd) {
-              lineTokenIndices.push({ tokenIdx, token })
-            }
-          })
-
-          return (
-            <div key={index} className="line-item masked-line">
-              <span className="line-number">{index + 1}</span>
-              <span className="line-mask-content">
-                {renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, revealedIndices, onReveal)}
-              </span>
-            </div>
-          )
+      {sortedSelected.map((lineIndex) => {
+        const line = textLines[lineIndex]
+        // 计算这一行在全文中的位置
+        let lineStart = 0
+        for (let i = 0; i < lineIndex; i++) {
+          lineStart += textLines[i].length + 1
         }
+        const lineEnd = lineStart + line.length
+
+        // 找出这一行的 tokens
+        const lineTokenIndices = []
+        tokens.forEach((token, tokenIdx) => {
+          if (token.start >= lineStart && token.end <= lineEnd) {
+            lineTokenIndices.push({ tokenIdx, token })
+          }
+        })
+
         return (
-          <div key={index} className="line-item muted">
-            <span className="line-number">{index + 1}</span>
-            <span className="line-text muted">{line || '\u00A0'}</span>
+          <div key={lineIndex} className="line-item masked-line">
+            <span className="line-number">{lineIndex + 1}</span>
+            <span className="line-mask-content">
+              {renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, revealedIndices, onReveal)}
+            </span>
           </div>
         )
       })}
