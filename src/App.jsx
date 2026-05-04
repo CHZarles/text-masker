@@ -90,8 +90,7 @@ function App() {
     if (selectedLines.size === 0) {
       setSelectedLines(new Set([0]))
     }
-    applyMultiLineMask(selectedLines.size > 0 ? selectedLines : new Set([0]), percentage, originalText)
-    setShowMasked(true)
+    setShowMasked(false)
   }
 
   const handleEdit = () => {
