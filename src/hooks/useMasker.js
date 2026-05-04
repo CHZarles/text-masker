@@ -25,90 +25,25 @@ function tokenizeText(text) {
   return tokens
 }
 
-// 按行分割文本，返回行数组及每行的起止位置
-function splitLines(text) {
-  const lines = []
-  const textLines = text.split('\n')
-  let position = 0
-
-  for (const line of textLines) {
-    lines.push({
-      text: line,
-      start: position,
-      end: position + line.length
-    })
-    position += line.length + 1 // +1 for newline
-  }
-
-  return lines
-}
-
 function isMarkdown(text) {
-  // 更严格的 Markdown 检测
   const lines = text.split('\n')
-
   let score = 0
 
   for (const line of lines) {
     const trimmed = line.trim()
-
-    // 标题 # ## ###
-    if (/^#{1,6}\s/.test(trimmed)) {
-      score += 2
-    }
-
-    // 无序列表 - * +
-    if (/^[-*+]\s/.test(trimmed)) {
-      score += 1
-    }
-
-    // 有序列表 1. 2.
-    if (/^\d+\.\s/.test(trimmed)) {
-      score += 1
-    }
-
-    // 引用 >
-    if (/^>\s/.test(trimmed)) {
-      score += 1
-    }
-
-    // 代码块 ```
-    if (/^```/.test(trimmed)) {
-      score += 2
-    }
-
-    // 粗体 **text**
-    if (/\*\*[^*]+\*\*/.test(trimmed)) {
-      score += 1
-    }
-
-    // 斜体 *text*
-    if (/(?<!\*)\*[^*]+\*(?!\*)/.test(trimmed)) {
-      score += 1
-    }
-
-    // 行内代码 `code`
-    if (/`[^`]+`/.test(trimmed)) {
-      score += 1
-    }
-
-    // 链接 [text](url)
-    if (/\[.+\]\(.+\)/.test(trimmed)) {
-      score += 1
-    }
-
-    // 水平线 ---
-    if (/^[-*_]{3,}$/.test(trimmed)) {
-      score += 1
-    }
-
-    // 表格 |
-    if (/^\|.+\|$/.test(trimmed)) {
-      score += 2
-    }
+    if (/^#{1,6}\s/.test(trimmed)) score += 2
+    if (/^[-*+]\s/.test(trimmed)) score += 1
+    if (/^\d+\.\s/.test(trimmed)) score += 1
+    if (/^>\s/.test(trimmed)) score += 1
+    if (/^```/.test(trimmed)) score += 2
+    if (/\*\*[^*]+\*\*/.test(trimmed)) score += 1
+    if (/(?<!\*)\*[^*]+\*(?!\*)/.test(trimmed)) score += 1
+    if (/`[^`]+`/.test(trimmed)) score += 1
+    if (/\[.+\]\(.+\)/.test(trimmed)) score += 1
+    if (/^[-*_]{3,}$/.test(trimmed)) score += 1
+    if (/^\|.+\|$/.test(trimmed)) score += 2
   }
 
-  // 如果分数 >= 3 或存在代码块，认为是 Markdown
   return score >= 3 || /```/.test(text)
 }
 
@@ -124,17 +59,13 @@ export function useMasker() {
 
   const [currentDocId, setCurrentDocId] = useState(null)
   const [tokens, setTokens] = useState([])
-  const [translationLines, setTranslationLines] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(new Set())
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
 
-  // 获取当前文档
   const currentDoc = documents.find(d => d.id === currentDocId)
   const originalText = currentDoc?.content || ''
-  const translationText = currentDoc?.translation || ''
 
-  // 保存到 localStorage
   const saveToStorage = useCallback((docs) => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(docs))
@@ -143,14 +74,12 @@ export function useMasker() {
     }
   }, [])
 
-  // 创建新文档
-  const createDocument = useCallback((content, translation = '', name = null) => {
+  const createDocument = useCallback((content, name = null) => {
     const markdownDetected = isMarkdown(content)
     const newDoc = {
       id: Date.now().toString(),
       name: name || `文档 ${documents.length + 1}`,
       content,
-      translation: translation || '',
       isMarkdown: markdownDetected,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -159,7 +88,6 @@ export function useMasker() {
     setDocuments(newDocs)
     setCurrentDocId(newDoc.id)
     setTokens(tokenizeText(content))
-    setTranslationLines(splitLines(translation || ''))
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
     setMarkdownDetected(markdownDetected)
@@ -167,20 +95,14 @@ export function useMasker() {
     return newDoc.id
   }, [documents, saveToStorage])
 
-  // 更新文档内容
-  const updateDocument = useCallback((id, content, translation) => {
+  const updateDocument = useCallback((id, content) => {
     const newDocs = documents.map(d => {
       if (d.id === id) {
-        const updates = { content, updatedAt: new Date().toISOString() }
-        if (translation !== undefined) {
-          updates.translation = translation
-        }
-        return { ...d, ...updates }
+        return { ...d, content, updatedAt: new Date().toISOString() }
       }
       return d
     })
     setDocuments(newDocs)
-    // 更新当前文档的 tokens 和状态
     if (id === currentDocId) {
       setTokens(tokenizeText(content))
       setMaskedIndices(new Set())
@@ -190,7 +112,6 @@ export function useMasker() {
     saveToStorage(newDocs)
   }, [documents, currentDocId, saveToStorage])
 
-  // 删除文档
   const deleteDocument = useCallback((id) => {
     const newDocs = documents.filter(d => d.id !== id)
     setDocuments(newDocs)
@@ -213,7 +134,6 @@ export function useMasker() {
     saveToStorage(newDocs)
   }, [documents, currentDocId, saveToStorage])
 
-  // 重命名文档
   const renameDocument = useCallback((id, newName) => {
     const newDocs = documents.map(d => {
       if (d.id === id) {
@@ -225,42 +145,34 @@ export function useMasker() {
     saveToStorage(newDocs)
   }, [documents, saveToStorage])
 
-  // 切换文档
   const selectDocument = useCallback((id) => {
     const doc = documents.find(d => d.id === id)
     if (doc) {
       setCurrentDocId(id)
       setTokens(tokenizeText(doc.content))
-      setTranslationLines(splitLines(doc.translation || ''))
       setMaskedIndices(new Set())
       setRevealedIndices(new Set())
       setMarkdownDetected(doc.isMarkdown ?? isMarkdown(doc.content))
     }
   }, [documents])
 
-  // 应用掩码
   const applyMask = useCallback((percentage) => {
     if (tokens.length === 0) return
-
     const totalCount = tokens.length
     const maskCount = Math.round(totalCount * (percentage / 100))
-
     const availableIndices = [...Array(totalCount).keys()]
     const shuffled = availableIndices.sort(() => Math.random() - 0.5)
     const newMaskedIndices = new Set(shuffled.slice(0, maskCount))
-
     setMaskedIndices(newMaskedIndices)
     setRevealedIndices(new Set())
   }, [tokens])
 
-  // 揭示 token
   const revealToken = useCallback((index) => {
     setRevealedIndices(prev => {
       const next = new Set(prev)
       next.add(index)
       return next
     })
-
     setTimeout(() => {
       setRevealedIndices(prev => {
         const next = new Set(prev)
@@ -270,7 +182,6 @@ export function useMasker() {
     }, 3000)
   }, [])
 
-  // 清除掩码
   const clearMask = useCallback(() => {
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
@@ -281,8 +192,6 @@ export function useMasker() {
     currentDocId,
     currentDoc,
     originalText,
-    translationText,
-    translationLines,
     tokens,
     maskedIndices,
     revealedIndices,

@@ -7,16 +7,12 @@ function App() {
   const [percentage, setPercentage] = useState(50)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
-  const [editTranslation, setEditTranslation] = useState('')
   const textareaRef = useRef(null)
-  const translationRef = useRef(null)
 
   const {
     documents,
     currentDocId,
     originalText,
-    translationText,
-    translationLines,
     tokens,
     maskedIndices,
     revealedIndices,
@@ -34,13 +30,12 @@ function App() {
 
   const handleEdit = () => {
     setEditContent(originalText)
-    setEditTranslation(translationText)
     setIsEditing(true)
   }
 
   const handleSaveEdit = () => {
     if (currentDocId && editContent.trim()) {
-      updateDocument(currentDocId, editContent, editTranslation)
+      updateDocument(currentDocId, editContent)
     }
     setIsEditing(false)
   }
@@ -48,7 +43,6 @@ function App() {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setEditContent('')
-    setEditTranslation('')
   }
 
   const handleDelete = (id) => {
@@ -59,9 +53,8 @@ function App() {
 
   const handleSaveDoc = () => {
     const text = textareaRef.current?.value || ''
-    const translation = translationRef.current?.value || ''
     if (text.trim()) {
-      createDocument(text, translation)
+      createDocument(text)
       setPage('study')
     } else {
       alert('请先输入内容')
@@ -70,11 +63,9 @@ function App() {
 
   const handleSaveAndContinue = () => {
     const text = textareaRef.current?.value || ''
-    const translation = translationRef.current?.value || ''
     if (text.trim()) {
-      createDocument(text, translation)
+      createDocument(text)
       if (textareaRef.current) textareaRef.current.value = ''
-      if (translationRef.current) translationRef.current.value = ''
     } else {
       alert('请先输入内容')
     }
@@ -82,7 +73,7 @@ function App() {
 
   const renderContent = () => {
     if (!originalText) return null
-    return renderText(originalText, tokens, translationLines, maskedIndices, revealedIndices, revealToken)
+    return renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
   }
 
   return (
@@ -142,13 +133,7 @@ function App() {
                   className="edit-input"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  placeholder="原文..."
-                />
-                <textarea
-                  className="edit-input translation-input"
-                  value={editTranslation}
-                  onChange={(e) => setEditTranslation(e.target.value)}
-                  placeholder="翻译版本（按行对应原文）..."
+                  placeholder="在此编辑内容..."
                 />
                 <div className="edit-actions">
                   <button className="save-btn" onClick={handleSaveEdit}>
@@ -186,11 +171,6 @@ function App() {
               className="paste-input"
               placeholder="在此粘贴要背诵的内容..."
             />
-            <textarea
-              ref={translationRef}
-              className="paste-input translation-input"
-              placeholder="粘贴翻译版本（按行对应原文）..."
-            />
             <div className="paste-actions">
               <button className="save-btn" onClick={handleSaveDoc}>
                 保存并开始背诵
@@ -227,7 +207,7 @@ function App() {
                     }}>
                       <h3 className="doc-name">
                         {doc.name}
-                        {doc.translation && <span className="translation-badge">翻译</span>}
+                        {doc.isMarkdown && <span className="md-badge">MD</span>}
                       </h3>
                       <p className="doc-preview">{doc.content.slice(0, 50)}...</p>
                       <span className="doc-date">
@@ -251,87 +231,52 @@ function App() {
   )
 }
 
-// 渲染带翻译的文本
-function renderText(text, tokens, translationLines, maskedIndices, revealedIndices, onReveal) {
-  // 将原文按行分割
-  const textLines = text.split('\n')
+function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
+  const elements = []
+  let lastEnd = 0
 
-  return textLines.map((line, lineIndex) => {
-    const lineElements = []
-    const lineStart = textLines.slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? lineIndex : 0)
-    const lineEnd = lineStart + line.length
-
-    // 找到属于这一行的 tokens
-    const lineTokens = tokens.filter(t => t.start >= lineStart && t.end <= lineEnd)
-
-    if (lineTokens.length === 0) {
-      // 无 token 的行，直接显示原文和翻译
-      return (
-        <div key={`line-${lineIndex}`} className="text-line">
-          <span className="line-text">{line}</span>
-          {translationLines[lineIndex] && (
-            <span className="line-translation">{translationLines[lineIndex].text}</span>
-          )}
-        </div>
-      )
-    }
-
-    // 构建行的元素
-    let lastEnd = lineStart
-    lineTokens.forEach((token, idx) => {
-      const tokenIdx = tokens.indexOf(token)
-
-      // 行内 token 前的文本
-      if (token.start > lastEnd) {
-        lineElements.push(
-          <span key={`pre-${lineIndex}-${idx}`} className="line-text">
-            {text.slice(lastEnd, token.start)}
-          </span>
-        )
-      }
-
-      const isMasked = maskedIndices.has(tokenIdx)
-      const isRevealed = revealedIndices.has(tokenIdx)
-
-      if (isMasked && !isRevealed) {
-        lineElements.push(
-          <span
-            key={`mask-${lineIndex}-${idx}`}
-            className="masked-text"
-            onClick={() => onReveal(tokenIdx)}
-          >
-            {token.text}
-          </span>
-        )
-      } else {
-        lineElements.push(
-          <span key={`text-${lineIndex}-${idx}`} className="line-text">
-            {token.text}
-          </span>
-        )
-      }
-
-      lastEnd = token.end
-    })
-
-    // 行末剩余文本
-    if (lastEnd < lineEnd) {
-      lineElements.push(
-        <span key={`post-${lineIndex}`} className="line-text">
-          {text.slice(lastEnd, lineEnd)}
+  tokens.forEach((token, index) => {
+    if (token.start > lastEnd) {
+      elements.push(
+        <span key={`pre-${index}`} style={{ whiteSpace: 'pre-wrap' }}>
+          {text.slice(lastEnd, token.start)}
         </span>
       )
     }
 
-    return (
-      <div key={`line-${lineIndex}`} className="text-line">
-        <span className="line-content">{lineElements}</span>
-        {translationLines[lineIndex] && (
-          <span className="line-translation">{translationLines[lineIndex].text}</span>
-        )}
-      </div>
-    )
+    const isMasked = maskedIndices.has(index)
+    const isRevealed = revealedIndices.has(index)
+
+    if (isMasked && !isRevealed) {
+      elements.push(
+        <span
+          key={`mask-${index}`}
+          className="masked-text"
+          onClick={() => onReveal(index)}
+        >
+          {token.text}
+        </span>
+      )
+    } else {
+      elements.push(
+        <span key={`text-${index}`}>
+          {token.text}
+        </span>
+      )
+    }
+
+    lastEnd = token.end
   })
+
+  if (lastEnd < text.length) {
+    elements.push(
+      <span key="post" style={{ whiteSpace: 'pre-wrap' }}>
+        {text.slice(lastEnd)}
+      </span>
+    )
+  }
+
+  return elements
 }
 
 export default App
