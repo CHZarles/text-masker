@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react'
 
 const STORAGE_KEY = 'text-masker-documents'
+const STATE_KEY = 'text-masker-state'
 
 function tokenizeText(text) {
   if (!text.trim()) return []
@@ -62,6 +63,34 @@ export function useMasker() {
   const [maskedIndices, setMaskedIndices] = useState(new Set())
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
+
+  // UI state persistence
+  const [lineModeEnabled, setLineModeEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? JSON.parse(saved).lineModeEnabled ?? false : false
+    } catch {
+      return false
+    }
+  })
+
+  const [selectedLines, setSelectedLines] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? new Set(JSON.parse(saved).selectedLines ?? []) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+
+  const [showMasked, setShowMasked] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? JSON.parse(saved).showMasked ?? false : false
+    } catch {
+      return false
+    }
+  })
 
   const currentDoc = documents.find(d => d.id === currentDocId)
   const originalText = currentDoc?.content || ''
@@ -247,6 +276,39 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [tokens])
 
+  // Save UI state to localStorage
+  useEffect(() => {
+    const state = {
+      lineModeEnabled,
+      selectedLines: [...selectedLines],
+      showMasked,
+      currentDocId
+    }
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify(state))
+    } catch (e) {
+      console.error('Failed to save state:', e)
+    }
+  }, [lineModeEnabled, selectedLines, showMasked, currentDocId])
+
+  // Restore UI state when document changes
+  useEffect(() => {
+    if (!currentDocId) return
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      if (saved) {
+        const state = JSON.parse(saved)
+        if (state.currentDocId === currentDocId) {
+          setLineModeEnabled(state.lineModeEnabled ?? false)
+          setSelectedLines(new Set(state.selectedLines ?? []))
+          setShowMasked(state.showMasked ?? false)
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [currentDocId])
+
   return {
     documents,
     currentDocId,
@@ -256,6 +318,12 @@ export function useMasker() {
     maskedIndices,
     revealedIndices,
     markdownDetected,
+    lineModeEnabled,
+    setLineModeEnabled,
+    selectedLines,
+    setSelectedLines,
+    showMasked,
+    setShowMasked,
     createDocument,
     updateDocument,
     deleteDocument,

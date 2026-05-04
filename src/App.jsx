@@ -7,9 +7,6 @@ function App() {
   const [percentage, setPercentage] = useState(50)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
-  const [lineModeEnabled, setLineModeEnabled] = useState(false)
-  const [selectedLines, setSelectedLines] = useState(new Set())
-  const [showMasked, setShowMasked] = useState(false)
   const textareaRef = useRef(null)
 
   const {
@@ -25,7 +22,13 @@ function App() {
     selectDocument,
     applyMask,
     applyMultiLineMask,
-    revealToken
+    revealToken,
+    lineModeEnabled,
+    setLineModeEnabled,
+    selectedLines,
+    setSelectedLines,
+    showMasked,
+    setShowMasked
   } = useMasker()
 
   const textLines = originalText ? originalText.split('\n') : []
@@ -321,10 +324,6 @@ function App() {
                     <div className="doc-info" onClick={() => {
                       selectDocument(doc.id)
                       setPage('study')
-                      setLineModeEnabled(false)
-                      setSelectedLines(new Set())
-                      setShowMasked(false)
-                      setTimeout(() => applyMask(percentage), 50)
                     }}>
                       <h3 className="doc-name">
                         {doc.name}
