@@ -210,6 +210,38 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [tokens])
 
+  // 多行掩码
+  const applyMultiLineMask = useCallback((lineIndices, percentage, text) => {
+    const lines = text.split('\n')
+    if (lineIndices.size === 0) return
+
+    let offset = 0
+    const allLineTokens = []
+
+    lines.forEach((line, lineIdx) => {
+      if (lineIndices.has(lineIdx)) {
+        const lineStart = offset
+        const lineEnd = offset + line.length
+
+        const lineTokens = tokens.filter(t =>
+          t.start >= lineStart && t.end <= lineEnd
+        )
+        allLineTokens.push(...lineTokens.map(t => tokens.indexOf(t)))
+      }
+      offset += line.length + 1
+    })
+
+    if (allLineTokens.length === 0) return
+
+    const totalCount = allLineTokens.length
+    const maskCount = Math.round(totalCount * (percentage / 100))
+    const shuffled = [...allLineTokens].sort(() => Math.random() - 0.5)
+    const toMask = new Set(shuffled.slice(0, maskCount))
+
+    setMaskedIndices(toMask)
+    setRevealedIndices(new Set())
+  }, [tokens])
+
   return {
     documents,
     currentDocId,
@@ -225,7 +257,7 @@ export function useMasker() {
     renameDocument,
     selectDocument,
     applyMask,
-    applyLineMask,
+    applyMultiLineMask,
     revealToken,
     clearMask
   }

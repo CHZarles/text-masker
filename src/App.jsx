@@ -7,8 +7,8 @@ function App() {
   const [percentage, setPercentage] = useState(50)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
-  const [lineMode, setLineMode] = useState(false)
-  const [selectedLine, setSelectedLine] = useState(null)
+  const [lineModeEnabled, setLineModeEnabled] = useState(false)
+  const [selectedLines, setSelectedLines] = useState(new Set())
   const textareaRef = useRef(null)
 
   const {
@@ -23,45 +23,67 @@ function App() {
     deleteDocument,
     selectDocument,
     applyMask,
-    applyLineMask,
+    applyMultiLineMask,
     revealToken
   } = useMasker()
 
-  // 按行分割文本
   const textLines = originalText ? originalText.split('\n') : []
 
   const handleMask = () => {
-    if (lineMode && selectedLine !== null) {
-      // 行模式：重新掩码选中行
-      applyLineMask(selectedLine, percentage, originalText)
+    if (lineModeEnabled && selectedLines.size > 0) {
+      applyMultiLineMask(selectedLines, percentage, originalText)
     } else {
       applyMask(percentage)
     }
   }
 
-  const handleLineSelect = (lineIndex) => {
-    setSelectedLine(lineIndex)
-    setLineMode(true)
-    applyLineMask(lineIndex, percentage, originalText)
+  const handleLineToggle = (lineIndex) => {
+    setSelectedLines(prev => {
+      const next = new Set(prev)
+      if (next.has(lineIndex)) {
+        next.delete(lineIndex)
+      } else {
+        next.add(lineIndex)
+      }
+      return next
+    })
+  }
+
+  const handleSelectAll = () => {
+    setSelectedLines(new Set(textLines.map((_, i) => i)))
+  }
+
+  const handleClearSelection = () => {
+    setSelectedLines(new Set())
   }
 
   const handlePrevLine = () => {
-    if (selectedLine > 0) {
-      setSelectedLine(selectedLine - 1)
-      applyLineMask(selectedLine - 1, percentage, originalText)
+    const sorted = [...selectedLines].sort((a, b) => a - b)
+    if (sorted.length > 0) {
+      const first = sorted[0]
+      if (first > 0) {
+        const newSet = new Set([first - 1])
+        setSelectedLines(newSet)
+        applyMultiLineMask(newSet, percentage, originalText)
+      }
     }
   }
 
   const handleNextLine = () => {
-    if (selectedLine < textLines.length - 1) {
-      setSelectedLine(selectedLine + 1)
-      applyLineMask(selectedLine + 1, percentage, originalText)
+    const sorted = [...selectedLines].sort((a, b) => a - b)
+    if (sorted.length > 0) {
+      const last = sorted[sorted.length - 1]
+      if (last < textLines.length - 1) {
+        const newSet = new Set([last + 1])
+        setSelectedLines(newSet)
+        applyMultiLineMask(newSet, percentage, originalText)
+      }
     }
   }
 
   const handleExitLineMode = () => {
-    setLineMode(false)
-    setSelectedLine(null)
+    setLineModeEnabled(false)
+    setSelectedLines(new Set())
     applyMask(percentage)
   }
 
@@ -108,9 +130,12 @@ function App() {
     }
   }
 
-  const renderContent = () => {
-    if (!originalText) return null
-    return renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
+  const handleEnterLineMode = () => {
+    setLineModeEnabled(true)
+    if (selectedLines.size === 0) {
+      setSelectedLines(new Set([0]))
+    }
+    applyMultiLineMask(selectedLines.size > 0 ? selectedLines : new Set([0]), percentage, originalText)
   }
 
   return (
@@ -156,7 +181,7 @@ function App() {
             onClick={handleMask}
             disabled={!originalText.trim()}
           >
-            {lineMode ? '重新开始' : '开始背诵'}
+            {lineModeEnabled ? '重新开始' : '开始背诵'}
           </button>
         </div>
       </aside>
@@ -190,25 +215,40 @@ function App() {
               </div>
             ) : (
               <>
-                {lineMode && (
+                <div className="mode-toggle">
+                  <button
+                    className={`mode-btn ${!lineModeEnabled ? 'active' : ''}`}
+                    onClick={handleExitLineMode}
+                  >
+                    全文
+                  </button>
+                  <button
+                    className={`mode-btn ${lineModeEnabled ? 'active' : ''}`}
+                    onClick={handleEnterLineMode}
+                  >
+                    选行
+                  </button>
+                </div>
+
+                {lineModeEnabled && selectedLines.size > 0 && (
                   <div className="line-nav">
-                    <button className="line-nav-btn" onClick={handlePrevLine} disabled={selectedLine <= 0}>
+                    <button className="line-nav-btn" onClick={handlePrevLine}>
                       上一行
                     </button>
-                    <span className="line-indicator">{selectedLine + 1} / {textLines.length}</span>
-                    <button className="line-nav-btn" onClick={handleNextLine} disabled={selectedLine >= textLines.length - 1}>
+                    <span className="line-indicator">
+                      {selectedLines.size} 行 | {([...selectedLines].sort((a,b) => a-b)[0] || 0) + 1} - {([...selectedLines].sort((a,b) => a-b).pop() || 0) + 1}
+                    </span>
+                    <button className="line-nav-btn" onClick={handleNextLine}>
                       下一行
-                    </button>
-                    <button className="line-nav-btn exit" onClick={handleExitLineMode}>
-                      退出选行
                     </button>
                   </div>
                 )}
+
                 <div className="text-display">
-                  {lineMode ? (
-                    renderLineMode(textLines, selectedLine, tokens, maskedIndices, revealedIndices, revealToken)
+                  {lineModeEnabled ? (
+                    renderSelectableLines(textLines, selectedLines, handleLineToggle)
                   ) : (
-                    renderSelectableLines(textLines, handleLineSelect)
+                    renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
                   )}
                 </div>
                 <div className="study-actions">
@@ -258,8 +298,8 @@ function App() {
                     <div className="doc-info" onClick={() => {
                       selectDocument(doc.id)
                       setPage('study')
-                      setLineMode(false)
-                      setSelectedLine(null)
+                      setLineModeEnabled(false)
+                      setSelectedLines(new Set())
                       setTimeout(() => applyMask(percentage), 50)
                     }}>
                       <h3 className="doc-name">
@@ -288,102 +328,26 @@ function App() {
   )
 }
 
-// 可选择的行列表（用于选择要背诵的行）
-function renderSelectableLines(textLines, onSelect) {
+// 可选择的行列表（多选）
+function renderSelectableLines(textLines, selectedLines, onToggle) {
   return (
     <div className="line-select">
+      <div className="line-selection-hint">
+        点击行以选择/取消选择
+      </div>
       {textLines.map((line, index) => (
         <div
           key={index}
-          className="line-item"
-          onClick={() => onSelect(index)}
+          className={`line-item ${selectedLines.has(index) ? 'selected' : ''}`}
+          onClick={() => onToggle(index)}
         >
+          <span className="line-checkbox">{selectedLines.has(index) ? '✓' : ''}</span>
           <span className="line-number">{index + 1}</span>
           <span className="line-content">{line || '\u00A0'}</span>
         </div>
       ))}
     </div>
   )
-}
-
-// 行背诵模式
-function renderLineMode(textLines, selectedLine, tokens, maskedIndices, revealedIndices, onReveal) {
-  return (
-    <div className="line-mode">
-      {textLines.map((line, index) => {
-        if (index === selectedLine) {
-          // 渲染选中行（带掩码）
-          return (
-            <div key={index} className="line-item active">
-              <span className="line-number">{index + 1}</span>
-              <span className="line-text">
-                {renderLineTokens(line, index, tokens, maskedIndices, revealedIndices, onReveal)}
-              </span>
-            </div>
-          )
-        }
-        return (
-          <div key={index} className="line-item muted">
-            <span className="line-number">{index + 1}</span>
-            <span className="line-text muted">{line || '\u00A0'}</span>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-// 渲染一行中的 tokens
-function renderLineTokens(line, lineIndex, allTokens, maskedIndices, revealedIndices, onReveal) {
-  const lineElements = []
-  let lastEnd = 0
-
-  // 计算这一行在全文中的起始位置
-  const linesBefore = allTokens.length > 0 ? 0 : 0
-
-  allTokens.forEach((token, idx) => {
-    // 简化：直接在行内查找 tokens
-    const tokenInLine = line.includes(token.text)
-    if (!tokenInLine) return
-
-    const pos = line.indexOf(token.text, lastEnd)
-    if (pos === -1) return
-
-    if (pos > lastEnd) {
-      lineElements.push(
-        <span key={`pre-${idx}`}>{line.slice(lastEnd, pos)}</span>
-      )
-    }
-
-    const isMasked = maskedIndices.has(idx)
-    const isRevealed = revealedIndices.has(idx)
-
-    if (isMasked && !isRevealed) {
-      lineElements.push(
-        <span
-          key={`mask-${idx}`}
-          className="masked-text"
-          onClick={() => onReveal(idx)}
-        >
-          {token.text}
-        </span>
-      )
-    } else {
-      lineElements.push(
-        <span key={`text-${idx}`}>{token.text}</span>
-      )
-    }
-
-    lastEnd = pos + token.text.length
-  })
-
-  if (lastEnd < line.length) {
-    lineElements.push(
-      <span key="post">{line.slice(lastEnd)}</span>
-    )
-  }
-
-  return lineElements
 }
 
 // 普通文本渲染（带掩码）
