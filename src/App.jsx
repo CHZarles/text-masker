@@ -376,10 +376,6 @@ function renderSelectableLines(textLines, selectedLines, onToggle) {
 
 // 渲染选中行的掩码内容
 function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndices, revealedIndices, onReveal) {
-  const sortedSelected = [...selectedLines].sort((a, b) => a - b)
-  const firstSelected = sortedSelected[0]
-  const lastSelected = sortedSelected[sortedSelected.length - 1]
-
   return (
     <div className="line-masked-display">
       {textLines.map((line, index) => {
@@ -395,7 +391,7 @@ function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndi
           const lineTokenIndices = []
           tokens.forEach((token, tokenIdx) => {
             if (token.start >= lineStart && token.end <= lineEnd) {
-              lineTokenIndices.push(tokenIdx)
+              lineTokenIndices.push({ tokenIdx, token })
             }
           })
 
@@ -403,7 +399,7 @@ function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndi
             <div key={index} className="line-item masked-line">
               <span className="line-number">{index + 1}</span>
               <span className="line-mask-content">
-                {renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, revealedIndices, onReveal)}
+                {renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, revealedIndices, onReveal)}
               </span>
             </div>
           )
@@ -420,16 +416,17 @@ function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndi
 }
 
 // 渲染一行中的 tokens
-function renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, revealedIndices, onReveal) {
+function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, revealedIndices, onReveal) {
   const elements = []
   let lastPos = 0
 
-  lineTokenIndices.forEach((tokenIdx) => {
-    const token = tokens[tokenIdx]
+  lineTokenIndices.forEach(({ tokenIdx, token }) => {
+    // 计算 token 在行内的相对位置
+    const relPos = token.start - lineStart
 
-    if (token.start > lastPos) {
+    if (relPos > lastPos) {
       elements.push(
-        <span key={`pre-${tokenIdx}`}>{line.slice(lastPos, token.start)}</span>
+        <span key={`pre-${tokenIdx}`}>{line.slice(lastPos, relPos)}</span>
       )
     }
 
@@ -452,7 +449,7 @@ function renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, reveale
       )
     }
 
-    lastPos = token.start + token.text.length
+    lastPos = relPos + token.text.length
   })
 
   if (lastPos < line.length) {
