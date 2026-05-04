@@ -215,20 +215,25 @@ export function useMasker() {
     const lines = text.split('\n')
     if (lineIndices.size === 0) return
 
-    let offset = 0
+    const lineStartPositions = []
+    let pos = 0
+    for (let i = 0; i < lines.length; i++) {
+      lineStartPositions.push(pos)
+      pos += lines[i].length + 1 // +1 for newline (except last line)
+    }
+
     const allLineTokens = []
 
     lines.forEach((line, lineIdx) => {
       if (lineIndices.has(lineIdx)) {
-        const lineStart = offset
-        const lineEnd = offset + line.length
+        const lineStart = lineStartPositions[lineIdx]
+        const lineEnd = lineStart + line.length
 
         const lineTokens = tokens.filter(t =>
           t.start >= lineStart && t.end <= lineEnd
         )
         allLineTokens.push(...lineTokens.map(t => tokens.indexOf(t)))
       }
-      offset += line.length + 1
     })
 
     if (allLineTokens.length === 0) return
