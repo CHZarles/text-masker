@@ -25,6 +25,24 @@ function tokenizeText(text) {
   return tokens
 }
 
+// 按行分割文本，返回行数组及每行的起止位置
+function splitLines(text) {
+  const lines = []
+  const textLines = text.split('\n')
+  let position = 0
+
+  for (const line of textLines) {
+    lines.push({
+      text: line,
+      start: position,
+      end: position + line.length
+    })
+    position += line.length + 1 // +1 for newline
+  }
+
+  return lines
+}
+
 function isMarkdown(text) {
   // 更严格的 Markdown 检测
   const lines = text.split('\n')
@@ -106,6 +124,7 @@ export function useMasker() {
 
   const [currentDocId, setCurrentDocId] = useState(null)
   const [tokens, setTokens] = useState([])
+  const [translationLines, setTranslationLines] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(new Set())
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
@@ -140,6 +159,7 @@ export function useMasker() {
     setDocuments(newDocs)
     setCurrentDocId(newDoc.id)
     setTokens(tokenizeText(content))
+    setTranslationLines(splitLines(translation || ''))
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
     setMarkdownDetected(markdownDetected)
@@ -211,9 +231,9 @@ export function useMasker() {
     if (doc) {
       setCurrentDocId(id)
       setTokens(tokenizeText(doc.content))
+      setTranslationLines(splitLines(doc.translation || ''))
       setMaskedIndices(new Set())
       setRevealedIndices(new Set())
-      // 优先使用文档保存的标记，如果没有则检测
       setMarkdownDetected(doc.isMarkdown ?? isMarkdown(doc.content))
     }
   }, [documents])
@@ -262,6 +282,7 @@ export function useMasker() {
     currentDoc,
     originalText,
     translationText,
+    translationLines,
     tokens,
     maskedIndices,
     revealedIndices,

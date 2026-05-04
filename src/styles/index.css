@@ -542,24 +542,29 @@ body {
   border-radius: 4px;
 }
 
-.translation-hint {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--gray-200);
+/* 行级翻译样式 */
+.text-line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  line-height: 2.2;
+}
+
+.line-content {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.line-text {
+  white-space: pre-wrap;
+}
+
+.line-translation {
+  color: var(--gray-400);
   font-size: 14px;
-  line-height: 1.8;
-}
-
-.translation-label {
-  color: var(--text-muted);
-  font-size: 12px;
-  display: block;
-  margin-bottom: 8px;
-}
-
-.translation-text {
-  color: var(--gray-600);
   font-style: italic;
+  padding-left: 1em;
+  opacity: 0.8;
 }
 
 /* 翻译文本区域样式 */

@@ -10,13 +10,13 @@ function App() {
   const [editTranslation, setEditTranslation] = useState('')
   const textareaRef = useRef(null)
   const translationRef = useRef(null)
-  const editTextareaRef = useRef(null)
 
   const {
     documents,
     currentDocId,
     originalText,
     translationText,
+    translationLines,
     tokens,
     maskedIndices,
     revealedIndices,
@@ -82,7 +82,7 @@ function App() {
 
   const renderContent = () => {
     if (!originalText) return null
-    return renderText(originalText, translationText, tokens, maskedIndices, revealedIndices, revealToken)
+    return renderText(originalText, tokens, translationLines, maskedIndices, revealedIndices, revealToken)
   }
 
   return (
@@ -139,7 +139,6 @@ function App() {
             {isEditing ? (
               <div className="edit-area">
                 <textarea
-                  ref={editTextareaRef}
                   className="edit-input"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
@@ -149,7 +148,7 @@ function App() {
                   className="edit-input translation-input"
                   value={editTranslation}
                   onChange={(e) => setEditTranslation(e.target.value)}
-                  placeholder="翻译版本..."
+                  placeholder="翻译版本（按行对应原文）..."
                 />
                 <div className="edit-actions">
                   <button className="save-btn" onClick={handleSaveEdit}>
@@ -190,7 +189,7 @@ function App() {
             <textarea
               ref={translationRef}
               className="paste-input translation-input"
-              placeholder="粘贴翻译版本（可选）..."
+              placeholder="粘贴翻译版本（按行对应原文）..."
             />
             <div className="paste-actions">
               <button className="save-btn" onClick={handleSaveDoc}>
@@ -252,69 +251,87 @@ function App() {
   )
 }
 
-// 渲染带翻译提示的文本
-function renderText(text, translation, tokens, maskedIndices, revealedIndices, onReveal) {
-  const elements = []
-  let lastEnd = 0
+// 渲染带翻译的文本
+function renderText(text, tokens, translationLines, maskedIndices, revealedIndices, onReveal) {
+  // 将原文按行分割
+  const textLines = text.split('\n')
 
-  tokens.forEach((token, index) => {
-    if (token.start > lastEnd) {
-      elements.push(
-        <span key={`pre-${index}`} style={{ whiteSpace: 'pre-wrap' }}>
-          {text.slice(lastEnd, token.start)}
+  return textLines.map((line, lineIndex) => {
+    const lineElements = []
+    const lineStart = textLines.slice(0, lineIndex).join('\n').length + (lineIndex > 0 ? lineIndex : 0)
+    const lineEnd = lineStart + line.length
+
+    // 找到属于这一行的 tokens
+    const lineTokens = tokens.filter(t => t.start >= lineStart && t.end <= lineEnd)
+
+    if (lineTokens.length === 0) {
+      // 无 token 的行，直接显示原文和翻译
+      return (
+        <div key={`line-${lineIndex}`} className="text-line">
+          <span className="line-text">{line}</span>
+          {translationLines[lineIndex] && (
+            <span className="line-translation">{translationLines[lineIndex].text}</span>
+          )}
+        </div>
+      )
+    }
+
+    // 构建行的元素
+    let lastEnd = lineStart
+    lineTokens.forEach((token, idx) => {
+      const tokenIdx = tokens.indexOf(token)
+
+      // 行内 token 前的文本
+      if (token.start > lastEnd) {
+        lineElements.push(
+          <span key={`pre-${lineIndex}-${idx}`} className="line-text">
+            {text.slice(lastEnd, token.start)}
+          </span>
+        )
+      }
+
+      const isMasked = maskedIndices.has(tokenIdx)
+      const isRevealed = revealedIndices.has(tokenIdx)
+
+      if (isMasked && !isRevealed) {
+        lineElements.push(
+          <span
+            key={`mask-${lineIndex}-${idx}`}
+            className="masked-text"
+            onClick={() => onReveal(tokenIdx)}
+          >
+            {token.text}
+          </span>
+        )
+      } else {
+        lineElements.push(
+          <span key={`text-${lineIndex}-${idx}`} className="line-text">
+            {token.text}
+          </span>
+        )
+      }
+
+      lastEnd = token.end
+    })
+
+    // 行末剩余文本
+    if (lastEnd < lineEnd) {
+      lineElements.push(
+        <span key={`post-${lineIndex}`} className="line-text">
+          {text.slice(lastEnd, lineEnd)}
         </span>
       )
     }
 
-    const isMasked = maskedIndices.has(index)
-    const isRevealed = revealedIndices.has(index)
-
-    if (isMasked && !isRevealed) {
-      elements.push(
-        <span
-          key={`mask-${index}`}
-          className="masked-text"
-          onClick={() => onReveal(index)}
-        >
-          {token.text}
-        </span>
-      )
-    } else if (isMasked && isRevealed) {
-      elements.push(
-        <span key={`text-${index}`}>
-          {token.text}
-        </span>
-      )
-    } else {
-      elements.push(
-        <span key={`text-${index}`}>
-          {token.text}
-        </span>
-      )
-    }
-
-    lastEnd = token.end
-  })
-
-  if (lastEnd < text.length) {
-    elements.push(
-      <span key="post" style={{ whiteSpace: 'pre-wrap' }}>
-        {text.slice(lastEnd)}
-      </span>
-    )
-  }
-
-  // 如果有翻译，在底部显示
-  if (translation) {
-    elements.push(
-      <div key="translation-hint" className="translation-hint">
-        <span className="translation-label">翻译提示：</span>
-        <span className="translation-text">{translation}</span>
+    return (
+      <div key={`line-${lineIndex}`} className="text-line">
+        <span className="line-content">{lineElements}</span>
+        {translationLines[lineIndex] && (
+          <span className="line-translation">{translationLines[lineIndex].text}</span>
+        )}
       </div>
     )
-  }
-
-  return elements
+  })
 }
 
 export default App
