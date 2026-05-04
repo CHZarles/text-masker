@@ -113,6 +113,7 @@ export function useMasker() {
   // 获取当前文档
   const currentDoc = documents.find(d => d.id === currentDocId)
   const originalText = currentDoc?.content || ''
+  const translationText = currentDoc?.translation || ''
 
   // 保存到 localStorage
   const saveToStorage = useCallback((docs) => {
@@ -124,19 +125,18 @@ export function useMasker() {
   }, [])
 
   // 创建新文档
-  const createDocument = useCallback((content, name = null) => {
-    console.log('createDocument called with:', content?.slice(0, 50))
+  const createDocument = useCallback((content, translation = '', name = null) => {
     const markdownDetected = isMarkdown(content)
     const newDoc = {
       id: Date.now().toString(),
       name: name || `文档 ${documents.length + 1}`,
       content,
+      translation: translation || '',
       isMarkdown: markdownDetected,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
     const newDocs = [...documents, newDoc]
-    console.log('New docs count:', newDocs.length)
     setDocuments(newDocs)
     setCurrentDocId(newDoc.id)
     setTokens(tokenizeText(content))
@@ -148,10 +148,14 @@ export function useMasker() {
   }, [documents, saveToStorage])
 
   // 更新文档内容
-  const updateDocument = useCallback((id, content) => {
+  const updateDocument = useCallback((id, content, translation) => {
     const newDocs = documents.map(d => {
       if (d.id === id) {
-        return { ...d, content, updatedAt: new Date().toISOString() }
+        const updates = { content, updatedAt: new Date().toISOString() }
+        if (translation !== undefined) {
+          updates.translation = translation
+        }
+        return { ...d, ...updates }
       }
       return d
     })
@@ -257,6 +261,7 @@ export function useMasker() {
     currentDocId,
     currentDoc,
     originalText,
+    translationText,
     tokens,
     maskedIndices,
     revealedIndices,

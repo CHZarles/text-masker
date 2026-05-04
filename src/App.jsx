@@ -3,20 +3,23 @@ import { useMasker } from './hooks/useMasker'
 import './styles/index.css'
 
 function App() {
-  const [page, setPage] = useState('study') // 'study' | 'paste' | 'documents'
+  const [page, setPage] = useState('study')
   const [percentage, setPercentage] = useState(50)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
+  const [editTranslation, setEditTranslation] = useState('')
   const textareaRef = useRef(null)
+  const translationRef = useRef(null)
   const editTextareaRef = useRef(null)
+
   const {
     documents,
     currentDocId,
     originalText,
+    translationText,
     tokens,
     maskedIndices,
     revealedIndices,
-    markdownDetected,
     createDocument,
     updateDocument,
     deleteDocument,
@@ -29,18 +32,15 @@ function App() {
     applyMask(percentage)
   }
 
-  const handleSave = () => {
-    setPage('study')
-  }
-
   const handleEdit = () => {
     setEditContent(originalText)
+    setEditTranslation(translationText)
     setIsEditing(true)
   }
 
   const handleSaveEdit = () => {
     if (currentDocId && editContent.trim()) {
-      updateDocument(currentDocId, editContent)
+      updateDocument(currentDocId, editContent, editTranslation)
     }
     setIsEditing(false)
   }
@@ -48,6 +48,7 @@ function App() {
   const handleCancelEdit = () => {
     setIsEditing(false)
     setEditContent('')
+    setEditTranslation('')
   }
 
   const handleDelete = (id) => {
@@ -58,9 +59,9 @@ function App() {
 
   const handleSaveDoc = () => {
     const text = textareaRef.current?.value || ''
-    console.log('Saving, text:', text.slice(0, 50))
+    const translation = translationRef.current?.value || ''
     if (text.trim()) {
-      createDocument(text)
+      createDocument(text, translation)
       setPage('study')
     } else {
       alert('请先输入内容')
@@ -69,21 +70,19 @@ function App() {
 
   const handleSaveAndContinue = () => {
     const text = textareaRef.current?.value || ''
-    console.log('Saving, text:', text.slice(0, 50))
+    const translation = translationRef.current?.value || ''
     if (text.trim()) {
-      createDocument(text)
-      if (textareaRef.current) {
-        textareaRef.current.value = ''
-      }
+      createDocument(text, translation)
+      if (textareaRef.current) textareaRef.current.value = ''
+      if (translationRef.current) translationRef.current.value = ''
     } else {
       alert('请先输入内容')
     }
   }
 
-  // 渲染带掩码的内容
   const renderContent = () => {
     if (!originalText) return null
-    return renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
+    return renderText(originalText, translationText, tokens, maskedIndices, revealedIndices, revealToken)
   }
 
   return (
@@ -144,7 +143,13 @@ function App() {
                   className="edit-input"
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  autoFocus
+                  placeholder="原文..."
+                />
+                <textarea
+                  className="edit-input translation-input"
+                  value={editTranslation}
+                  onChange={(e) => setEditTranslation(e.target.value)}
+                  placeholder="翻译版本..."
                 />
                 <div className="edit-actions">
                   <button className="save-btn" onClick={handleSaveEdit}>
@@ -181,7 +186,11 @@ function App() {
               ref={textareaRef}
               className="paste-input"
               placeholder="在此粘贴要背诵的内容..."
-              autoFocus
+            />
+            <textarea
+              ref={translationRef}
+              className="paste-input translation-input"
+              placeholder="粘贴翻译版本（可选）..."
             />
             <div className="paste-actions">
               <button className="save-btn" onClick={handleSaveDoc}>
@@ -219,7 +228,7 @@ function App() {
                     }}>
                       <h3 className="doc-name">
                         {doc.name}
-                        {doc.isMarkdown && <span className="md-badge">MD</span>}
+                        {doc.translation && <span className="translation-badge">翻译</span>}
                       </h3>
                       <p className="doc-preview">{doc.content.slice(0, 50)}...</p>
                       <span className="doc-date">
@@ -243,7 +252,8 @@ function App() {
   )
 }
 
-function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
+// 渲染带翻译提示的文本
+function renderText(text, translation, tokens, maskedIndices, revealedIndices, onReveal) {
   const elements = []
   let lastEnd = 0
 
@@ -269,6 +279,12 @@ function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
           {token.text}
         </span>
       )
+    } else if (isMasked && isRevealed) {
+      elements.push(
+        <span key={`text-${index}`}>
+          {token.text}
+        </span>
+      )
     } else {
       elements.push(
         <span key={`text-${index}`}>
@@ -285,6 +301,16 @@ function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
       <span key="post" style={{ whiteSpace: 'pre-wrap' }}>
         {text.slice(lastEnd)}
       </span>
+    )
+  }
+
+  // 如果有翻译，在底部显示
+  if (translation) {
+    elements.push(
+      <div key="translation-hint" className="translation-hint">
+        <span className="translation-label">翻译提示：</span>
+        <span className="translation-text">{translation}</span>
+      </div>
     )
   }
 

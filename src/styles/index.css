@@ -533,6 +533,42 @@ body {
   border-radius: 4px;
 }
 
+.translation-badge {
+  font-size: 10px;
+  font-weight: 600;
+  background: #3b82f6;
+  color: #fff;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.translation-hint {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid var(--gray-200);
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.translation-label {
+  color: var(--text-muted);
+  font-size: 12px;
+  display: block;
+  margin-bottom: 8px;
+}
+
+.translation-text {
+  color: var(--gray-600);
+  font-style: italic;
+}
+
+/* 翻译文本区域样式 */
+.translation-input {
+  margin-top: 16px;
+  min-height: 200px;
+  background: var(--gray-50);
+}
+
 .doc-info .doc-preview {
   font-size: 13px;
   color: var(--text-secondary);
