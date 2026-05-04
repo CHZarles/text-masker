@@ -1,20 +1,22 @@
-import { useState } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { useState, useRef } from 'react'
 import { useMasker } from './hooks/useMasker'
 import './styles/index.css'
 
 function App() {
-  const [page, setPage] = useState('study') // 'study' | 'paste'
+  const [page, setPage] = useState('study') // 'study' | 'paste' | 'documents'
   const [percentage, setPercentage] = useState(50)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editContent, setEditContent] = useState('')
+  const textareaRef = useRef(null)
+  const editTextareaRef = useRef(null)
   const {
     documents,
-    currentDoc,
     currentDocId,
     originalText,
     tokens,
     maskedIndices,
     revealedIndices,
-    isMarkdown,
+    markdownDetected,
     createDocument,
     updateDocument,
     deleteDocument,
@@ -31,27 +33,56 @@ function App() {
     setPage('study')
   }
 
+  const handleEdit = () => {
+    setEditContent(originalText)
+    setIsEditing(true)
+  }
+
+  const handleSaveEdit = () => {
+    if (currentDocId && editContent.trim()) {
+      updateDocument(currentDocId, editContent)
+    }
+    setIsEditing(false)
+  }
+
+  const handleCancelEdit = () => {
+    setIsEditing(false)
+    setEditContent('')
+  }
+
   const handleDelete = (id) => {
     if (confirm('确定要删除这个文档吗？')) {
       deleteDocument(id)
+    }
+  }
+
+  const handleSaveDoc = () => {
+    const text = textareaRef.current?.value || ''
+    console.log('Saving, text:', text.slice(0, 50))
+    if (text.trim()) {
+      createDocument(text)
       setPage('study')
+    } else {
+      alert('请先输入内容')
+    }
+  }
+
+  const handleSaveAndContinue = () => {
+    const text = textareaRef.current?.value || ''
+    console.log('Saving, text:', text.slice(0, 50))
+    if (text.trim()) {
+      createDocument(text)
+      if (textareaRef.current) {
+        textareaRef.current.value = ''
+      }
+    } else {
+      alert('请先输入内容')
     }
   }
 
   // 渲染带掩码的内容
   const renderContent = () => {
     if (!originalText) return null
-
-    if (isMarkdown) {
-      return <MarkdownWithMask
-        text={originalText}
-        tokens={tokens}
-        maskedIndices={maskedIndices}
-        revealedIndices={revealedIndices}
-        onReveal={revealToken}
-      />
-    }
-
     return renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
   }
 
@@ -59,28 +90,6 @@ function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-logo">背书</div>
-
-        {/* 文档列表 */}
-        <div className="doc-list">
-          {documents.map(doc => (
-            <div
-              key={doc.id}
-              className={`doc-item ${doc.id === currentDocId ? 'active' : ''}`}
-              onClick={() => selectDocument(doc.id)}
-            >
-              <span className="doc-name">{doc.name}</span>
-              <button
-                className="doc-delete"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDelete(doc.id)
-                }}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-        </div>
 
         <nav className="sidebar-nav">
           <button
@@ -94,6 +103,12 @@ function App() {
             onClick={() => setPage('paste')}
           >
             粘贴
+          </button>
+          <button
+            className={`nav-btn ${page === 'documents' ? 'active' : ''}`}
+            onClick={() => setPage('documents')}
+          >
+            文档
           </button>
         </nav>
 
@@ -122,50 +137,103 @@ function App() {
       <main className="main">
         {page === 'study' ? (
           <div className="study-area">
-            {tokens.length === 0 && !originalText ? (
+            {isEditing ? (
+              <div className="edit-area">
+                <textarea
+                  ref={editTextareaRef}
+                  className="edit-input"
+                  value={editContent}
+                  onChange={(e) => setEditContent(e.target.value)}
+                  autoFocus
+                />
+                <div className="edit-actions">
+                  <button className="save-btn" onClick={handleSaveEdit}>
+                    保存
+                  </button>
+                  <button className="cancel-btn" onClick={handleCancelEdit}>
+                    取消
+                  </button>
+                </div>
+              </div>
+            ) : tokens.length === 0 && !originalText ? (
               <div className="empty-state">
-                <p>还没有文档</p>
-                <button className="go-paste-btn" onClick={() => setPage('paste')}>
-                  去粘贴
+                <p>还没有选择文档</p>
+                <button className="go-paste-btn" onClick={() => setPage('documents')}>
+                  选择文档
                 </button>
               </div>
             ) : (
-              <div className="text-display">
-                {renderContent()}
-              </div>
+              <>
+                <div className="text-display">
+                  {renderContent()}
+                </div>
+                <div className="study-actions">
+                  <button className="edit-btn" onClick={handleEdit}>
+                    编辑
+                  </button>
+                </div>
+              </>
             )}
           </div>
-        ) : (
+        ) : page === 'paste' ? (
           <div className="paste-area">
             <textarea
+              ref={textareaRef}
               className="paste-input"
               placeholder="在此粘贴要背诵的内容..."
-              value={originalText}
-              onChange={(e) => updateDocument(currentDocId, e.target.value)}
               autoFocus
             />
             <div className="paste-actions">
-              {currentDocId ? (
-                <>
-                  <button className="save-btn" onClick={handleSave}>
-                    保存
+              <button className="save-btn" onClick={handleSaveDoc}>
+                保存并开始背诵
+              </button>
+              <button className="save-btn secondary" onClick={handleSaveAndContinue}>
+                仅保存
+              </button>
+              <button className="cancel-btn" onClick={() => setPage('study')}>
+                取消
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="documents-area">
+            <h2 className="docs-title">我的文档</h2>
+            <div className="docs-list">
+              {documents.length === 0 ? (
+                <div className="docs-empty">
+                  <p>还没有文档</p>
+                  <button className="go-paste-btn" onClick={() => setPage('paste')}>
+                    创建新文档
                   </button>
-                  <button className="cancel-btn" onClick={() => setPage('study')}>
-                    取消
-                  </button>
-                </>
+                </div>
               ) : (
-                <button
-                  className="save-btn"
-                  onClick={() => {
-                    if (originalText.trim()) {
-                      createDocument(originalText)
+                documents.map(doc => (
+                  <div
+                    key={doc.id}
+                    className={`doc-card ${doc.id === currentDocId ? 'active' : ''}`}
+                  >
+                    <div className="doc-info" onClick={() => {
+                      selectDocument(doc.id)
                       setPage('study')
-                    }
-                  }}
-                >
-                  保存并开始背诵
-                </button>
+                      setTimeout(() => applyMask(percentage), 50)
+                    }}>
+                      <h3 className="doc-name">
+                        {doc.name}
+                        {doc.isMarkdown && <span className="md-badge">MD</span>}
+                      </h3>
+                      <p className="doc-preview">{doc.content.slice(0, 50)}...</p>
+                      <span className="doc-date">
+                        {new Date(doc.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <button
+                      className="doc-delete"
+                      onClick={() => handleDelete(doc.id)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -216,84 +284,6 @@ function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
     elements.push(
       <span key="post" style={{ whiteSpace: 'pre-wrap' }}>
         {text.slice(lastEnd)}
-      </span>
-    )
-  }
-
-  return elements
-}
-
-function MarkdownWithMask({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  const lines = text.split('\n')
-
-  return (
-    <div className="markdown-content">
-      {lines.map((line, lineIndex) => {
-        const lineTokens = tokens.filter(token => {
-          const startLine = text.substring(0, token.start).split('\n').length - 1
-          const endLine = text.substring(0, token.end).split('\n').length - 1
-          return startLine === lineIndex || endLine === lineIndex
-        })
-
-        return (
-          <div key={lineIndex} className="markdown-line">
-            {lineTokens.length > 0 ? (
-              renderLineWithMask(line, lineTokens, tokens, maskedIndices, revealedIndices, onReveal)
-            ) : (
-              <span style={{ whiteSpace: 'pre-wrap' }}>{line}</span>
-            )}
-          </div>
-        )
-      })}
-    </div>
-  )
-}
-
-function renderLineWithMask(line, lineTokens, allTokens, maskedIndices, revealedIndices, onReveal) {
-  const elements = []
-  let lastEnd = 0
-
-  const lineStartInText = lineTokens[0]?.start ?? 0
-
-  lineTokens.forEach((token) => {
-    const relativeStart = token.start - lineStartInText
-
-    if (relativeStart > lastEnd) {
-      elements.push(
-        <span key={`pre-${token.id}`}>
-          {line.slice(lastEnd, relativeStart)}
-        </span>
-      )
-    }
-
-    const isMasked = maskedIndices.has(allTokens.indexOf(token))
-    const isRevealed = revealedIndices.has(allTokens.indexOf(token))
-
-    if (isMasked && !isRevealed) {
-      elements.push(
-        <span
-          key={`mask-${token.id}`}
-          className="masked-text"
-          onClick={() => onReveal(allTokens.indexOf(token))}
-        >
-          {token.text}
-        </span>
-      )
-    } else {
-      elements.push(
-        <span key={`text-${token.id}`}>
-          {token.text}
-        </span>
-      )
-    }
-
-    lastEnd = relativeStart + token.text.length
-  })
-
-  if (lastEnd < line.length) {
-    elements.push(
-      <span key={`post-${lineStartInText}`}>
-        {line.slice(lastEnd)}
       </span>
     )
   }

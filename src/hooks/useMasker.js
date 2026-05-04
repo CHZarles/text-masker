@@ -26,18 +26,72 @@ function tokenizeText(text) {
 }
 
 function isMarkdown(text) {
-  const markdownPatterns = [
-    /^#{1,6}\s/m,
-    /\*\*[^*]+\*\*/,
-    /\*[^*]+\*/,
-    /`[^`]+`/,
-    /\[.+\]\(.+\)/,
-    /^[-*]\s/m,
-    /^>\s/m,
-    /```/,
-    /\|.+\|/,
-  ]
-  return markdownPatterns.some(pattern => pattern.test(text))
+  // 更严格的 Markdown 检测
+  const lines = text.split('\n')
+
+  let score = 0
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+
+    // 标题 # ## ###
+    if (/^#{1,6}\s/.test(trimmed)) {
+      score += 2
+    }
+
+    // 无序列表 - * +
+    if (/^[-*+]\s/.test(trimmed)) {
+      score += 1
+    }
+
+    // 有序列表 1. 2.
+    if (/^\d+\.\s/.test(trimmed)) {
+      score += 1
+    }
+
+    // 引用 >
+    if (/^>\s/.test(trimmed)) {
+      score += 1
+    }
+
+    // 代码块 ```
+    if (/^```/.test(trimmed)) {
+      score += 2
+    }
+
+    // 粗体 **text**
+    if (/\*\*[^*]+\*\*/.test(trimmed)) {
+      score += 1
+    }
+
+    // 斜体 *text*
+    if (/(?<!\*)\*[^*]+\*(?!\*)/.test(trimmed)) {
+      score += 1
+    }
+
+    // 行内代码 `code`
+    if (/`[^`]+`/.test(trimmed)) {
+      score += 1
+    }
+
+    // 链接 [text](url)
+    if (/\[.+\]\(.+\)/.test(trimmed)) {
+      score += 1
+    }
+
+    // 水平线 ---
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      score += 1
+    }
+
+    // 表格 |
+    if (/^\|.+\|$/.test(trimmed)) {
+      score += 2
+    }
+  }
+
+  // 如果分数 >= 3 或存在代码块，认为是 Markdown
+  return score >= 3 || /```/.test(text)
 }
 
 export function useMasker() {
@@ -54,7 +108,7 @@ export function useMasker() {
   const [tokens, setTokens] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(new Set())
   const [revealedIndices, setRevealedIndices] = useState(new Set())
-  const [isMarkdown, setIsMarkdown] = useState(false)
+  const [markdownDetected, setMarkdownDetected] = useState(false)
 
   // 获取当前文档
   const currentDoc = documents.find(d => d.id === currentDocId)
@@ -71,20 +125,24 @@ export function useMasker() {
 
   // 创建新文档
   const createDocument = useCallback((content, name = null) => {
+    console.log('createDocument called with:', content?.slice(0, 50))
+    const markdownDetected = isMarkdown(content)
     const newDoc = {
       id: Date.now().toString(),
       name: name || `文档 ${documents.length + 1}`,
       content,
+      isMarkdown: markdownDetected,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     }
     const newDocs = [...documents, newDoc]
+    console.log('New docs count:', newDocs.length)
     setDocuments(newDocs)
     setCurrentDocId(newDoc.id)
     setTokens(tokenizeText(content))
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
-    setIsMarkdown(isMarkdown(content))
+    setMarkdownDetected(markdownDetected)
     saveToStorage(newDocs)
     return newDoc.id
   }, [documents, saveToStorage])
@@ -98,12 +156,15 @@ export function useMasker() {
       return d
     })
     setDocuments(newDocs)
-    setTokens(tokenizeText(content))
-    setMaskedIndices(new Set())
-    setRevealedIndices(new Set())
-    setIsMarkdown(isMarkdown(content))
+    // 更新当前文档的 tokens 和状态
+    if (id === currentDocId) {
+      setTokens(tokenizeText(content))
+      setMaskedIndices(new Set())
+      setRevealedIndices(new Set())
+      setMarkdownDetected(isMarkdown(content))
+    }
     saveToStorage(newDocs)
-  }, [documents, saveToStorage])
+  }, [documents, currentDocId, saveToStorage])
 
   // 删除文档
   const deleteDocument = useCallback((id) => {
@@ -116,13 +177,13 @@ export function useMasker() {
         setTokens(tokenizeText(remaining.content))
         setMaskedIndices(new Set())
         setRevealedIndices(new Set())
-        setIsMarkdown(isMarkdown(remaining.content))
+        setMarkdownDetected(remaining.isMarkdown ?? isMarkdown(remaining.content))
       } else {
         setCurrentDocId(null)
         setTokens([])
         setMaskedIndices(new Set())
         setRevealedIndices(new Set())
-        setIsMarkdown(false)
+        setMarkdownDetected(false)
       }
     }
     saveToStorage(newDocs)
@@ -148,7 +209,8 @@ export function useMasker() {
       setTokens(tokenizeText(doc.content))
       setMaskedIndices(new Set())
       setRevealedIndices(new Set())
-      setIsMarkdown(isMarkdown(doc.content))
+      // 优先使用文档保存的标记，如果没有则检测
+      setMarkdownDetected(doc.isMarkdown ?? isMarkdown(doc.content))
     }
   }, [documents])
 
@@ -198,7 +260,7 @@ export function useMasker() {
     tokens,
     maskedIndices,
     revealedIndices,
-    isMarkdown,
+    markdownDetected,
     createDocument,
     updateDocument,
     deleteDocument,
