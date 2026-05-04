@@ -64,33 +64,10 @@ export function useMasker() {
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
 
-  // UI state persistence
-  const [lineModeEnabled, setLineModeEnabled] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? JSON.parse(saved).lineModeEnabled ?? false : false
-    } catch {
-      return false
-    }
-  })
-
-  const [selectedLines, setSelectedLines] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? new Set(JSON.parse(saved).selectedLines ?? []) : new Set()
-    } catch {
-      return new Set()
-    }
-  })
-
-  const [showMasked, setShowMasked] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? JSON.parse(saved).showMasked ?? false : false
-    } catch {
-      return false
-    }
-  })
+  // UI state - restored from localStorage on mount
+  const [lineModeEnabled, setLineModeEnabled] = useState(false)
+  const [selectedLines, setSelectedLines] = useState(new Set())
+  const [showMasked, setShowMasked] = useState(false)
 
   const currentDoc = documents.find(d => d.id === currentDocId)
   const originalText = currentDoc?.content || ''
@@ -120,6 +97,10 @@ export function useMasker() {
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
     setMarkdownDetected(markdownDetected)
+    // Reset UI state for new document
+    setLineModeEnabled(false)
+    setSelectedLines(new Set())
+    setShowMasked(false)
     saveToStorage(newDocs)
     return newDoc.id
   }, [documents, saveToStorage])
@@ -298,10 +279,16 @@ export function useMasker() {
       const saved = localStorage.getItem(STATE_KEY)
       if (saved) {
         const state = JSON.parse(saved)
+        // Only restore if this was the same document
         if (state.currentDocId === currentDocId) {
           setLineModeEnabled(state.lineModeEnabled ?? false)
           setSelectedLines(new Set(state.selectedLines ?? []))
           setShowMasked(state.showMasked ?? false)
+        } else {
+          // Different document - reset to default
+          setLineModeEnabled(false)
+          setSelectedLines(new Set())
+          setShowMasked(false)
         }
       }
     } catch {
