@@ -1,48 +1,77 @@
 import { useState, useCallback } from 'react'
 
 /**
- * 将文本分割成片段（按句子或段落）
+ * 将文本按字/词分割
  */
-function splitIntoSegments(text) {
+function tokenizeText(text) {
   if (!text.trim()) return []
 
-  // 按句子分割（。！？.!?）
-  const sentences = text.split(/(?<=[。！？.!?])/)
+  // 匹配中文词汇（2-4字）和英文单词
+  const tokens = []
+  const regex = /[\u4e00-\u9fa5]{1,4}|[a-zA-Z]+/g
+  let match
 
-  // 如果句子太少，按逗号和换行再分割
-  if (sentences.length < 3) {
-    return text.split(/[,，\n]+/).filter(s => s.trim())
+  while ((match = regex.exec(text)) !== null) {
+    tokens.push({
+      id: match.index,
+      text: match[0],
+      start: match.index,
+      end: match.index + match[0].length
+    })
   }
 
-  return sentences.filter(s => s.trim())
+  // 如果没有匹配到词汇（如全是标点），返回整个文本作为一个token
+  if (tokens.length === 0) {
+    return [{ id: 0, text: text.trim(), start: 0, end: text.length }]
+  }
+
+  return tokens
 }
 
 /**
- * 根据百分比随机选择片段进行掩盖
+ * 检测是否为 Markdown 文本
  */
+function isMarkdown(text) {
+  const markdownPatterns = [
+    /^#{1,6}\s/m,          // 标题
+    /\*\*[^*]+\*\*/,        // 粗体
+    /\*[^*]+\*/,           // 斜体
+    /`[^`]+`/,             // 代码
+    /\[.+\]\(.+\)/,        // 链接
+    /^[-*]\s/m,            // 列表
+    /^>\s/m,               // 引用
+    /```/,                 // 代码块
+    /\|.+\|/,              // 表格
+  ]
+
+  return markdownPatterns.some(pattern => pattern.test(text))
+}
+
 export function useMasker() {
   const [originalText, setOriginalText] = useState('')
-  const [segments, setSegments] = useState([])
+  const [tokens, setTokens] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(new Set())
-  const [revealedIndex, setRevealedIndex] = useState(null)
+  const [revealedIndices, setRevealedIndices] = useState(new Set())
+  const [isMarkdown, setIsMarkdown] = useState(false)
 
   /**
-   * 设置原始文本并分割
+   * 设置原始文本并分词
    */
   const setText = useCallback((text) => {
     setOriginalText(text)
-    setSegments(splitIntoSegments(text))
+    setTokens(tokenizeText(text))
     setMaskedIndices(new Set())
-    setRevealedIndex(null)
+    setRevealedIndices(new Set())
+    setIsMarkdown(isMarkdown(text))
   }, [])
 
   /**
    * 根据百分比随机掩盖
    */
   const applyMask = useCallback((percentage) => {
-    if (segments.length === 0) return
+    if (tokens.length === 0) return
 
-    const totalCount = segments.length
+    const totalCount = tokens.length
     const maskCount = Math.round(totalCount * (percentage / 100))
 
     // 随机选择要掩盖的索引
@@ -51,18 +80,27 @@ export function useMasker() {
     const newMaskedIndices = new Set(shuffled.slice(0, maskCount))
 
     setMaskedIndices(newMaskedIndices)
-    setRevealedIndex(null)
-  }, [segments])
+    setRevealedIndices(new Set())
+  }, [tokens])
 
   /**
-   * 点击揭示片段
+   * 点击揭示token
    */
-  const revealSegment = useCallback((index) => {
-    setRevealedIndex(index)
-    // 2秒后自动恢复掩盖
+  const revealToken = useCallback((index) => {
+    setRevealedIndices(prev => {
+      const next = new Set(prev)
+      next.add(index)
+      return next
+    })
+
+    // 3秒后自动恢复掩盖
     setTimeout(() => {
-      setRevealedIndex(null)
-    }, 2000)
+      setRevealedIndices(prev => {
+        const next = new Set(prev)
+        next.delete(index)
+        return next
+      })
+    }, 3000)
   }, [])
 
   /**
@@ -70,17 +108,18 @@ export function useMasker() {
    */
   const clearMask = useCallback(() => {
     setMaskedIndices(new Set())
-    setRevealedIndex(null)
+    setRevealedIndices(new Set())
   }, [])
 
   return {
     originalText,
-    segments,
+    tokens,
     maskedIndices,
-    revealedIndex,
+    revealedIndices,
+    isMarkdown,
     setText,
     applyMask,
-    revealSegment,
+    revealToken,
     clearMask
   }
 }

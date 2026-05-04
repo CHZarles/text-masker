@@ -5,9 +5,9 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  background: #1a1a2e;
-  color: #eee;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #fff;
+  color: #000;
   min-height: 100vh;
 }
 
@@ -15,251 +15,329 @@ body {
   min-height: 100vh;
 }
 
-/* App layout styles */
+/* 整体布局 */
 .app {
-  max-width: 800px;
-  margin: 0 auto;
-  padding: 20px;
+  display: flex;
+  min-height: 100vh;
 }
 
-.app-header {
-  text-align: center;
+/* 侧边栏 */
+.sidebar {
+  width: 60px;
+  background: #f5f5f5;
+  border-right: 1px solid #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+}
+
+.sidebar-logo {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
   margin-bottom: 30px;
 }
 
-.app-header h1 {
-  font-size: 28px;
-  color: #eee;
-  margin-bottom: 8px;
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.app-subtitle {
-  color: #8892b0;
+.nav-btn {
+  padding: 10px 16px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
   font-size: 14px;
+  color: #666;
+  transition: color 0.2s;
 }
 
-.app-main {
+.nav-btn:hover {
+  color: #000;
+}
+
+.nav-btn.active {
+  color: #000;
+  font-weight: 600;
+}
+
+.sidebar-controls {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 20px;
+}
+
+.percentage-control {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.percentage-value {
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+}
+
+.percentage-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  height: 100px;
+  width: 20px;
+  cursor: pointer;
+}
+
+.percentage-slider::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #000;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.percentage-slider::-webkit-slider-runnable-track {
+  width: 2px;
+  background: #ddd;
+}
+
+.mask-btn {
+  padding: 10px 16px;
+  background: #000;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.mask-btn:hover:not(:disabled) {
+  background: #333;
+}
+
+.mask-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* 主内容区 */
+.main {
+  flex: 1;
+  margin-left: 60px;
+  padding: 40px 20px;
   display: flex;
   flex-direction: column;
 }
 
-/* InputArea styles */
-.input-area {
-  background: #16213e;
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 16px;
-}
-
-.input-area.collapsed {
-  padding: 12px 16px;
-}
-
-.input-header {
+/* 背诵区域 */
+.study-area {
+  min-height: calc(100vh - 80px);
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 12px;
-  color: #8892b0;
-  font-size: 14px;
+  flex-direction: column;
 }
 
-.collapse-btn {
-  width: 28px;
-  height: 28px;
-  border: none;
-  background: #0f3460;
-  color: #eee;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
+.empty-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: background 0.2s;
+  height: 60vh;
+  color: #999;
+  gap: 20px;
 }
 
-.collapse-btn:hover {
-  background: #e94560;
-}
-
-.text-input {
-  width: 100%;
-  min-height: 120px;
-  background: #0f0f23;
-  border: 1px solid #233554;
-  border-radius: 8px;
-  padding: 12px;
-  color: #eee;
-  font-size: 15px;
-  line-height: 1.6;
-  resize: vertical;
-}
-
-.text-input:focus {
-  outline: none;
-  border-color: #e94560;
-}
-
-.text-input::placeholder {
-  color: #4a5568;
-}
-
-/* ControlBar styles */
-.control-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #16213e;
-  border-radius: 12px;
-  padding: 16px 20px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.percentage-group {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.percentage-label {
-  color: #8892b0;
-  font-size: 14px;
-}
-
-.percentage-buttons {
-  display: flex;
-  gap: 8px;
-}
-
-.percentage-btn {
-  padding: 8px 16px;
-  border: 2px solid #233554;
-  background: transparent;
-  color: #8892b0;
-  border-radius: 8px;
+.go-paste-btn {
+  padding: 10px 24px;
+  background: #000;
+  color: #fff;
+  border: none;
   cursor: pointer;
   font-size: 14px;
-  font-weight: 600;
+}
+
+.text-display {
+  flex: 1;
+  font-size: 18px;
+  line-height: 2;
+  text-align: left;
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 40px 20px;
+  max-width: 700px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.masked-text {
+  display: inline;
+  background: #000;
+  color: #000;
+  padding: 0 1px;
+  cursor: pointer;
+  border-radius: 2px;
   transition: all 0.2s;
 }
 
-.percentage-btn:hover {
-  border-color: #e94560;
-  color: #eee;
-}
-
-.percentage-btn.active {
-  background: #e94560;
-  border-color: #e94560;
+.masked-text:hover {
+  background: #666;
   color: #fff;
 }
 
-.mask-btn {
-  padding: 10px 24px;
-  background: linear-gradient(135deg, #e94560, #ff6b6b);
-  border: none;
+.revealed-text {
+  display: inline;
+  background: #333;
   color: #fff;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
-  transition: transform 0.2s, box-shadow 0.2s;
-}
-
-.mask-btn:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(233, 69, 96, 0.4);
-}
-
-.mask-btn:active:not(:disabled) {
-  transform: translateY(0);
-}
-
-.mask-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-/* MaskedTextDisplay styles */
-.masked-display {
-  background: #0f0f23;
-  border-radius: 12px;
-  padding: 24px;
-  min-height: 300px;
-  line-height: 2;
-  font-size: 17px;
-}
-
-.masked-display.empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.empty-hint {
-  color: #4a5568;
-  font-size: 16px;
+  padding: 0 2px;
+  border-radius: 2px;
 }
 
 .normal-text {
-  color: #eee;
-}
-
-.masked-block {
-  display: inline-block;
-  background: #333;
-  color: #666;
-  padding: 2px 8px;
-  border-radius: 4px;
-  cursor: pointer;
-  user-select: none;
-  transition: background 0.2s;
-  margin: 0 2px;
-}
-
-.masked-block:hover {
-  background: #444;
-}
-
-.revealed-block {
   display: inline;
-  background: rgba(233, 69, 96, 0.3);
-  color: #ff6b6b;
-  padding: 2px 4px;
-  border-radius: 4px;
-  cursor: pointer;
 }
 
-/* Responsive */
-@media (max-width: 600px) {
-  .app {
-    padding: 12px;
-  }
+/* Markdown 样式 */
+.markdown-content {
+  text-align: left;
+  max-width: 700px;
+  margin: 0 auto;
+}
 
-  .control-bar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.markdown-content h1 {
+  font-size: 28px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
 
-  .percentage-group {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+.markdown-content h2 {
+  font-size: 24px;
+  margin-bottom: 12px;
+}
 
-  .percentage-buttons {
-    width: 100%;
-  }
+.markdown-content h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
 
-  .percentage-btn {
-    flex: 1;
-    text-align: center;
-  }
+.markdown-content p {
+  margin-bottom: 12px;
+}
 
-  .mask-btn {
-    width: 100%;
-    margin-top: 8px;
-  }
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 24px;
+  margin-bottom: 12px;
+}
+
+.markdown-content li {
+  margin-bottom: 4px;
+}
+
+.markdown-content code {
+  background: #f5f5f5;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-family: monospace;
+  font-size: 14px;
+}
+
+.markdown-content pre {
+  background: #f5f5f5;
+  padding: 16px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin-bottom: 12px;
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdown-content blockquote {
+  border-left: 4px solid #ddd;
+  padding-left: 16px;
+  color: #666;
+  margin: 12px 0;
+}
+
+.markdown-content a {
+  color: #0066cc;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-line {
+  white-space: pre-wrap;
+}
+
+/* 粘贴区域 */
+.paste-area {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 80px);
+  max-width: 700px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.paste-input {
+  flex: 1;
+  border: 1px solid #ddd;
+  padding: 20px;
+  font-size: 16px;
+  line-height: 1.8;
+  resize: none;
+  font-family: inherit;
+}
+
+.paste-input:focus {
+  outline: none;
+  border-color: #000;
+}
+
+.paste-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.save-btn {
+  padding: 12px 24px;
+  background: #000;
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.save-btn:hover {
+  background: #333;
+}
+
+.cancel-btn {
+  padding: 12px 24px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.cancel-btn:hover {
+  border-color: #000;
+  color: #000;
 }
