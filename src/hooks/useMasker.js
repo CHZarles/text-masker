@@ -1,12 +1,10 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 
-/**
- * 将文本按字/词分割
- */
+const STORAGE_KEY = 'text-masker-documents'
+
 function tokenizeText(text) {
   if (!text.trim()) return []
 
-  // 匹配中文词汇（2-4字）和英文单词
   const tokens = []
   const regex = /[\u4e00-\u9fa5]{1,4}|[a-zA-Z]+/g
   let match
@@ -20,7 +18,6 @@ function tokenizeText(text) {
     })
   }
 
-  // 如果没有匹配到词汇（如全是标点），返回整个文本作为一个token
   if (tokens.length === 0) {
     return [{ id: 0, text: text.trim(), start: 0, end: text.length }]
   }
@@ -28,53 +25,140 @@ function tokenizeText(text) {
   return tokens
 }
 
-/**
- * 检测是否为 Markdown 文本
- */
 function isMarkdown(text) {
   const markdownPatterns = [
-    /^#{1,6}\s/m,          // 标题
-    /\*\*[^*]+\*\*/,        // 粗体
-    /\*[^*]+\*/,           // 斜体
-    /`[^`]+`/,             // 代码
-    /\[.+\]\(.+\)/,        // 链接
-    /^[-*]\s/m,            // 列表
-    /^>\s/m,               // 引用
-    /```/,                 // 代码块
-    /\|.+\|/,              // 表格
+    /^#{1,6}\s/m,
+    /\*\*[^*]+\*\*/,
+    /\*[^*]+\*/,
+    /`[^`]+`/,
+    /\[.+\]\(.+\)/,
+    /^[-*]\s/m,
+    /^>\s/m,
+    /```/,
+    /\|.+\|/,
   ]
-
   return markdownPatterns.some(pattern => pattern.test(text))
 }
 
 export function useMasker() {
-  const [originalText, setOriginalText] = useState('')
+  const [documents, setDocuments] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY)
+      return saved ? JSON.parse(saved) : []
+    } catch {
+      return []
+    }
+  })
+
+  const [currentDocId, setCurrentDocId] = useState(null)
   const [tokens, setTokens] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(new Set())
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [isMarkdown, setIsMarkdown] = useState(false)
 
-  /**
-   * 设置原始文本并分词
-   */
-  const setText = useCallback((text) => {
-    setOriginalText(text)
-    setTokens(tokenizeText(text))
-    setMaskedIndices(new Set())
-    setRevealedIndices(new Set())
-    setIsMarkdown(isMarkdown(text))
+  // 获取当前文档
+  const currentDoc = documents.find(d => d.id === currentDocId)
+  const originalText = currentDoc?.content || ''
+
+  // 保存到 localStorage
+  const saveToStorage = useCallback((docs) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(docs))
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e)
+    }
   }, [])
 
-  /**
-   * 根据百分比随机掩盖
-   */
+  // 创建新文档
+  const createDocument = useCallback((content, name = null) => {
+    const newDoc = {
+      id: Date.now().toString(),
+      name: name || `文档 ${documents.length + 1}`,
+      content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    const newDocs = [...documents, newDoc]
+    setDocuments(newDocs)
+    setCurrentDocId(newDoc.id)
+    setTokens(tokenizeText(content))
+    setMaskedIndices(new Set())
+    setRevealedIndices(new Set())
+    setIsMarkdown(isMarkdown(content))
+    saveToStorage(newDocs)
+    return newDoc.id
+  }, [documents, saveToStorage])
+
+  // 更新文档内容
+  const updateDocument = useCallback((id, content) => {
+    const newDocs = documents.map(d => {
+      if (d.id === id) {
+        return { ...d, content, updatedAt: new Date().toISOString() }
+      }
+      return d
+    })
+    setDocuments(newDocs)
+    setTokens(tokenizeText(content))
+    setMaskedIndices(new Set())
+    setRevealedIndices(new Set())
+    setIsMarkdown(isMarkdown(content))
+    saveToStorage(newDocs)
+  }, [documents, saveToStorage])
+
+  // 删除文档
+  const deleteDocument = useCallback((id) => {
+    const newDocs = documents.filter(d => d.id !== id)
+    setDocuments(newDocs)
+    if (currentDocId === id) {
+      const remaining = newDocs[0]
+      if (remaining) {
+        setCurrentDocId(remaining.id)
+        setTokens(tokenizeText(remaining.content))
+        setMaskedIndices(new Set())
+        setRevealedIndices(new Set())
+        setIsMarkdown(isMarkdown(remaining.content))
+      } else {
+        setCurrentDocId(null)
+        setTokens([])
+        setMaskedIndices(new Set())
+        setRevealedIndices(new Set())
+        setIsMarkdown(false)
+      }
+    }
+    saveToStorage(newDocs)
+  }, [documents, currentDocId, saveToStorage])
+
+  // 重命名文档
+  const renameDocument = useCallback((id, newName) => {
+    const newDocs = documents.map(d => {
+      if (d.id === id) {
+        return { ...d, name: newName, updatedAt: new Date().toISOString() }
+      }
+      return d
+    })
+    setDocuments(newDocs)
+    saveToStorage(newDocs)
+  }, [documents, saveToStorage])
+
+  // 切换文档
+  const selectDocument = useCallback((id) => {
+    const doc = documents.find(d => d.id === id)
+    if (doc) {
+      setCurrentDocId(id)
+      setTokens(tokenizeText(doc.content))
+      setMaskedIndices(new Set())
+      setRevealedIndices(new Set())
+      setIsMarkdown(isMarkdown(doc.content))
+    }
+  }, [documents])
+
+  // 应用掩码
   const applyMask = useCallback((percentage) => {
     if (tokens.length === 0) return
 
     const totalCount = tokens.length
     const maskCount = Math.round(totalCount * (percentage / 100))
 
-    // 随机选择要掩盖的索引
     const availableIndices = [...Array(totalCount).keys()]
     const shuffled = availableIndices.sort(() => Math.random() - 0.5)
     const newMaskedIndices = new Set(shuffled.slice(0, maskCount))
@@ -83,9 +167,7 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [tokens])
 
-  /**
-   * 点击揭示token
-   */
+  // 揭示 token
   const revealToken = useCallback((index) => {
     setRevealedIndices(prev => {
       const next = new Set(prev)
@@ -93,7 +175,6 @@ export function useMasker() {
       return next
     })
 
-    // 3秒后自动恢复掩盖
     setTimeout(() => {
       setRevealedIndices(prev => {
         const next = new Set(prev)
@@ -103,21 +184,26 @@ export function useMasker() {
     }, 3000)
   }, [])
 
-  /**
-   * 清除所有掩盖
-   */
+  // 清除掩码
   const clearMask = useCallback(() => {
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
   }, [])
 
   return {
+    documents,
+    currentDocId,
+    currentDoc,
     originalText,
     tokens,
     maskedIndices,
     revealedIndices,
     isMarkdown,
-    setText,
+    createDocument,
+    updateDocument,
+    deleteDocument,
+    renameDocument,
+    selectDocument,
     applyMask,
     revealToken,
     clearMask

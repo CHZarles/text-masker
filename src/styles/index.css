@@ -40,7 +40,61 @@ body {
   font-size: 14px;
   font-weight: 600;
   color: #333;
-  margin-bottom: 30px;
+  margin-bottom: 16px;
+}
+
+/* 文档列表 */
+.doc-list {
+  flex: 1;
+  overflow-y: auto;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.doc-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  transition: background 0.2s;
+}
+
+.doc-item:hover {
+  background: #e8e8e8;
+}
+
+.doc-item.active {
+  background: #e0e0e0;
+  font-weight: 600;
+}
+
+.doc-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.doc-delete {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: transparent;
+  color: #999;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  margin-left: 4px;
+  border-radius: 4px;
+}
+
+.doc-delete:hover {
+  background: #ddd;
+  color: #666;
 }
 
 .sidebar-nav {

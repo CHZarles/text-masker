@@ -4,15 +4,21 @@ import { useMasker } from './hooks/useMasker'
 import './styles/index.css'
 
 function App() {
-  const [page, setPage] = useState('study')
+  const [page, setPage] = useState('study') // 'study' | 'paste'
   const [percentage, setPercentage] = useState(50)
   const {
+    documents,
+    currentDoc,
+    currentDocId,
     originalText,
     tokens,
     maskedIndices,
     revealedIndices,
     isMarkdown,
-    setText,
+    createDocument,
+    updateDocument,
+    deleteDocument,
+    selectDocument,
     applyMask,
     revealToken
   } = useMasker()
@@ -21,20 +27,21 @@ function App() {
     applyMask(percentage)
   }
 
-  const handlePaste = () => {
-    setPage('paste')
-  }
-
   const handleSave = () => {
     setPage('study')
+  }
+
+  const handleDelete = (id) => {
+    if (confirm('确定要删除这个文档吗？')) {
+      deleteDocument(id)
+      setPage('study')
+    }
   }
 
   // 渲染带掩码的内容
   const renderContent = () => {
     if (!originalText) return null
 
-    // 如果是 Markdown，用 ReactMarkdown 渲染
-    // 但需要特殊处理来支持掩码
     if (isMarkdown) {
       return <MarkdownWithMask
         text={originalText}
@@ -45,7 +52,6 @@ function App() {
       />
     }
 
-    // 普通文本
     return renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
   }
 
@@ -53,6 +59,29 @@ function App() {
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-logo">背书</div>
+
+        {/* 文档列表 */}
+        <div className="doc-list">
+          {documents.map(doc => (
+            <div
+              key={doc.id}
+              className={`doc-item ${doc.id === currentDocId ? 'active' : ''}`}
+              onClick={() => selectDocument(doc.id)}
+            >
+              <span className="doc-name">{doc.name}</span>
+              <button
+                className="doc-delete"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleDelete(doc.id)
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+
         <nav className="sidebar-nav">
           <button
             className={`nav-btn ${page === 'study' ? 'active' : ''}`}
@@ -62,11 +91,12 @@ function App() {
           </button>
           <button
             className={`nav-btn ${page === 'paste' ? 'active' : ''}`}
-            onClick={() => handlePaste()}
+            onClick={() => setPage('paste')}
           >
             粘贴
           </button>
         </nav>
+
         <div className="sidebar-controls">
           <div className="percentage-control">
             <span className="percentage-value">{percentage}%</span>
@@ -94,8 +124,8 @@ function App() {
           <div className="study-area">
             {tokens.length === 0 && !originalText ? (
               <div className="empty-state">
-                <p>还没有文本</p>
-                <button className="go-paste-btn" onClick={handlePaste}>
+                <p>还没有文档</p>
+                <button className="go-paste-btn" onClick={() => setPage('paste')}>
                   去粘贴
                 </button>
               </div>
@@ -111,16 +141,32 @@ function App() {
               className="paste-input"
               placeholder="在此粘贴要背诵的内容..."
               value={originalText}
-              onChange={(e) => setText(e.target.value)}
+              onChange={(e) => updateDocument(currentDocId, e.target.value)}
               autoFocus
             />
             <div className="paste-actions">
-              <button className="save-btn" onClick={() => handleSave(originalText)}>
-                保存并开始背诵
-              </button>
-              <button className="cancel-btn" onClick={() => setPage('study')}>
-                取消
-              </button>
+              {currentDocId ? (
+                <>
+                  <button className="save-btn" onClick={handleSave}>
+                    保存
+                  </button>
+                  <button className="cancel-btn" onClick={() => setPage('study')}>
+                    取消
+                  </button>
+                </>
+              ) : (
+                <button
+                  className="save-btn"
+                  onClick={() => {
+                    if (originalText.trim()) {
+                      createDocument(originalText)
+                      setPage('study')
+                    }
+                  }}
+                >
+                  保存并开始背诵
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -129,7 +175,6 @@ function App() {
   )
 }
 
-// 普通文本渲染
 function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
   const elements = []
   let lastEnd = 0
@@ -178,15 +223,12 @@ function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
   return elements
 }
 
-// Markdown 渲染（保持格式 + 掩码）
 function MarkdownWithMask({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  // 将文本按行分割，每行单独处理
   const lines = text.split('\n')
 
   return (
     <div className="markdown-content">
       {lines.map((line, lineIndex) => {
-        // 找到该行对应的 tokens
         const lineTokens = tokens.filter(token => {
           const startLine = text.substring(0, token.start).split('\n').length - 1
           const endLine = text.substring(0, token.end).split('\n').length - 1
@@ -207,21 +249,15 @@ function MarkdownWithMask({ text, tokens, maskedIndices, revealedIndices, onReve
   )
 }
 
-// 单行文本的掩码渲染
 function renderLineWithMask(line, lineTokens, allTokens, maskedIndices, revealedIndices, onReveal) {
   const elements = []
   let lastEnd = 0
 
-  // 找到该行在原文中的起始位置
-  const lineStartInText = allTokens.length > 0
-    ? (lineTokens[0]?.start ?? 0)
-    : 0
+  const lineStartInText = lineTokens[0]?.start ?? 0
 
   lineTokens.forEach((token) => {
-    // 计算 token 在当前行内的相对位置
     const relativeStart = token.start - lineStartInText
 
-    // 添加该 token 之前的内容
     if (relativeStart > lastEnd) {
       elements.push(
         <span key={`pre-${token.id}`}>
@@ -254,7 +290,6 @@ function renderLineWithMask(line, lineTokens, allTokens, maskedIndices, revealed
     lastEnd = relativeStart + token.text.length
   })
 
-  // 添加行尾内容
   if (lastEnd < line.length) {
     elements.push(
       <span key={`post-${lineStartInText}`}>
