@@ -40,6 +40,7 @@ function App() {
   }
 
   const handleLineToggle = (lineIndex) => {
+    if (showMasked) return // Don't allow selection changes when showing masked view
     setSelectedLines(prev => {
       const next = new Set(prev)
       if (next.has(lineIndex)) {
@@ -49,10 +50,10 @@ function App() {
       }
       return next
     })
-    setShowMasked(false)
   }
 
   const handlePrevLine = () => {
+    if (!showMasked) return
     const sorted = [...selectedLines].sort((a, b) => a - b)
     if (sorted.length > 0) {
       const first = sorted[0]
@@ -60,12 +61,12 @@ function App() {
         const newSet = new Set([first - 1])
         setSelectedLines(newSet)
         applyMultiLineMask(newSet, percentage, originalText)
-        setShowMasked(true)
       }
     }
   }
 
   const handleNextLine = () => {
+    if (!showMasked) return
     const sorted = [...selectedLines].sort((a, b) => a - b)
     if (sorted.length > 0) {
       const last = sorted[sorted.length - 1]
@@ -73,7 +74,6 @@ function App() {
         const newSet = new Set([last + 1])
         setSelectedLines(newSet)
         applyMultiLineMask(newSet, percentage, originalText)
-        setShowMasked(true)
       }
     }
   }
@@ -85,12 +85,16 @@ function App() {
     applyMask(percentage)
   }
 
+  const handleBackToSelection = () => {
+    setShowMasked(false)
+  }
+
   const handleEnterLineMode = () => {
     setLineModeEnabled(true)
+    setShowMasked(false)
     if (selectedLines.size === 0) {
       setSelectedLines(new Set([0]))
     }
-    setShowMasked(false)
   }
 
   const handleEdit = () => {
@@ -228,29 +232,46 @@ function App() {
                   </button>
                 </div>
 
-                {lineModeEnabled && selectedLines.size > 0 && (
+                {lineModeEnabled && (
                   <div className="line-nav">
-                    <button className="line-nav-btn" onClick={handlePrevLine}>
-                      上一行
-                    </button>
-                    <span className="line-indicator">
-                      {selectedLines.size} 行 | {([...selectedLines].sort((a,b) => a-b)[0] || 0) + 1} - {([...selectedLines].sort((a,b) => a-b).pop() || 0) + 1}
-                    </span>
-                    <button className="line-nav-btn" onClick={handleNextLine}>
-                      下一行
-                    </button>
+                    {showMasked ? (
+                      <>
+                        <button className="line-nav-btn" onClick={handlePrevLine}>
+                          上一行
+                        </button>
+                        <span className="line-indicator">
+                          {([...selectedLines].sort((a,b) => a-b)[0] || 0) + 1} / {textLines.length}
+                        </span>
+                        <button className="line-nav-btn" onClick={handleNextLine}>
+                          下一行
+                        </button>
+                        <button className="line-nav-btn exit" onClick={handleBackToSelection}>
+                          返回选择
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="line-indicator">
+                          已选 {selectedLines.size} 行
+                        </span>
+                        <button
+                          className="line-nav-btn exit"
+                          onClick={() => setSelectedLines(new Set())}
+                        >
+                          清空
+                        </button>
+                      </>
+                    )}
                   </div>
                 )}
 
                 <div className="text-display">
-                  {lineModeEnabled ? (
-                    showMasked ? (
-                      renderLineMasked(textLines, selectedLines, originalText, tokens, maskedIndices, revealedIndices, revealToken)
-                    ) : (
-                      renderSelectableLines(textLines, selectedLines, handleLineToggle)
-                    )
-                  ) : (
+                  {!lineModeEnabled ? (
                     renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
+                  ) : showMasked ? (
+                    renderLineMasked(textLines, selectedLines, originalText, tokens, maskedIndices, revealedIndices, revealToken)
+                  ) : (
+                    renderSelectableLines(textLines, selectedLines, handleLineToggle)
                   )}
                 </div>
                 <div className="study-actions">
@@ -355,6 +376,10 @@ function renderSelectableLines(textLines, selectedLines, onToggle) {
 
 // 渲染选中行的掩码内容
 function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndices, revealedIndices, onReveal) {
+  const sortedSelected = [...selectedLines].sort((a, b) => a - b)
+  const firstSelected = sortedSelected[0]
+  const lastSelected = sortedSelected[sortedSelected.length - 1]
+
   return (
     <div className="line-masked-display">
       {textLines.map((line, index) => {
@@ -401,13 +426,10 @@ function renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, reveale
 
   lineTokenIndices.forEach((tokenIdx) => {
     const token = tokens[tokenIdx]
-    const pos = token.start
-    // pos 需要相对于当前行重新计算
-    const relPos = pos
 
-    if (pos > lastPos) {
+    if (token.start > lastPos) {
       elements.push(
-        <span key={`pre-${tokenIdx}`}>{line.slice(lastPos, pos)}</span>
+        <span key={`pre-${tokenIdx}`}>{line.slice(lastPos, token.start)}</span>
       )
     }
 
@@ -430,7 +452,7 @@ function renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, reveale
       )
     }
 
-    lastPos = pos + token.text.length
+    lastPos = token.start + token.text.length
   })
 
   if (lastPos < line.length) {
