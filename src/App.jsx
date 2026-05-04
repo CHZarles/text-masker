@@ -7,6 +7,8 @@ function App() {
   const [percentage, setPercentage] = useState(50)
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
+  const [lineMode, setLineMode] = useState(false)
+  const [selectedLine, setSelectedLine] = useState(null)
   const textareaRef = useRef(null)
 
   const {
@@ -21,10 +23,45 @@ function App() {
     deleteDocument,
     selectDocument,
     applyMask,
+    applyLineMask,
     revealToken
   } = useMasker()
 
+  // 按行分割文本
+  const textLines = originalText ? originalText.split('\n') : []
+
   const handleMask = () => {
+    if (lineMode && selectedLine !== null) {
+      // 行模式：重新掩码选中行
+      applyLineMask(selectedLine, percentage, originalText)
+    } else {
+      applyMask(percentage)
+    }
+  }
+
+  const handleLineSelect = (lineIndex) => {
+    setSelectedLine(lineIndex)
+    setLineMode(true)
+    applyLineMask(lineIndex, percentage, originalText)
+  }
+
+  const handlePrevLine = () => {
+    if (selectedLine > 0) {
+      setSelectedLine(selectedLine - 1)
+      applyLineMask(selectedLine - 1, percentage, originalText)
+    }
+  }
+
+  const handleNextLine = () => {
+    if (selectedLine < textLines.length - 1) {
+      setSelectedLine(selectedLine + 1)
+      applyLineMask(selectedLine + 1, percentage, originalText)
+    }
+  }
+
+  const handleExitLineMode = () => {
+    setLineMode(false)
+    setSelectedLine(null)
     applyMask(percentage)
   }
 
@@ -119,7 +156,7 @@ function App() {
             onClick={handleMask}
             disabled={!originalText.trim()}
           >
-            开始背诵
+            {lineMode ? '重新开始' : '开始背诵'}
           </button>
         </div>
       </aside>
@@ -153,8 +190,26 @@ function App() {
               </div>
             ) : (
               <>
+                {lineMode && (
+                  <div className="line-nav">
+                    <button className="line-nav-btn" onClick={handlePrevLine} disabled={selectedLine <= 0}>
+                      上一行
+                    </button>
+                    <span className="line-indicator">{selectedLine + 1} / {textLines.length}</span>
+                    <button className="line-nav-btn" onClick={handleNextLine} disabled={selectedLine >= textLines.length - 1}>
+                      下一行
+                    </button>
+                    <button className="line-nav-btn exit" onClick={handleExitLineMode}>
+                      退出选行
+                    </button>
+                  </div>
+                )}
                 <div className="text-display">
-                  {renderContent()}
+                  {lineMode ? (
+                    renderLineMode(textLines, selectedLine, tokens, maskedIndices, revealedIndices, revealToken)
+                  ) : (
+                    renderSelectableLines(textLines, handleLineSelect)
+                  )}
                 </div>
                 <div className="study-actions">
                   <button className="edit-btn" onClick={handleEdit}>
@@ -203,6 +258,8 @@ function App() {
                     <div className="doc-info" onClick={() => {
                       selectDocument(doc.id)
                       setPage('study')
+                      setLineMode(false)
+                      setSelectedLine(null)
                       setTimeout(() => applyMask(percentage), 50)
                     }}>
                       <h3 className="doc-name">
@@ -231,6 +288,105 @@ function App() {
   )
 }
 
+// 可选择的行列表（用于选择要背诵的行）
+function renderSelectableLines(textLines, onSelect) {
+  return (
+    <div className="line-select">
+      {textLines.map((line, index) => (
+        <div
+          key={index}
+          className="line-item"
+          onClick={() => onSelect(index)}
+        >
+          <span className="line-number">{index + 1}</span>
+          <span className="line-content">{line || '\u00A0'}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// 行背诵模式
+function renderLineMode(textLines, selectedLine, tokens, maskedIndices, revealedIndices, onReveal) {
+  return (
+    <div className="line-mode">
+      {textLines.map((line, index) => {
+        if (index === selectedLine) {
+          // 渲染选中行（带掩码）
+          return (
+            <div key={index} className="line-item active">
+              <span className="line-number">{index + 1}</span>
+              <span className="line-text">
+                {renderLineTokens(line, index, tokens, maskedIndices, revealedIndices, onReveal)}
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div key={index} className="line-item muted">
+            <span className="line-number">{index + 1}</span>
+            <span className="line-text muted">{line || '\u00A0'}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// 渲染一行中的 tokens
+function renderLineTokens(line, lineIndex, allTokens, maskedIndices, revealedIndices, onReveal) {
+  const lineElements = []
+  let lastEnd = 0
+
+  // 计算这一行在全文中的起始位置
+  const linesBefore = allTokens.length > 0 ? 0 : 0
+
+  allTokens.forEach((token, idx) => {
+    // 简化：直接在行内查找 tokens
+    const tokenInLine = line.includes(token.text)
+    if (!tokenInLine) return
+
+    const pos = line.indexOf(token.text, lastEnd)
+    if (pos === -1) return
+
+    if (pos > lastEnd) {
+      lineElements.push(
+        <span key={`pre-${idx}`}>{line.slice(lastEnd, pos)}</span>
+      )
+    }
+
+    const isMasked = maskedIndices.has(idx)
+    const isRevealed = revealedIndices.has(idx)
+
+    if (isMasked && !isRevealed) {
+      lineElements.push(
+        <span
+          key={`mask-${idx}`}
+          className="masked-text"
+          onClick={() => onReveal(idx)}
+        >
+          {token.text}
+        </span>
+      )
+    } else {
+      lineElements.push(
+        <span key={`text-${idx}`}>{token.text}</span>
+      )
+    }
+
+    lastEnd = pos + token.text.length
+  })
+
+  if (lastEnd < line.length) {
+    lineElements.push(
+      <span key="post">{line.slice(lastEnd)}</span>
+    )
+  }
+
+  return lineElements
+}
+
+// 普通文本渲染（带掩码）
 function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
   const elements = []
   let lastEnd = 0

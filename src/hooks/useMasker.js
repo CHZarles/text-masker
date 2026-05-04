@@ -187,6 +187,29 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [])
 
+  // 行级掩码
+  const applyLineMask = useCallback((lineIndex, percentage, text) => {
+    const lines = text.split('\n')
+    if (lineIndex < 0 || lineIndex >= lines.length) return
+
+    const targetLine = lines[lineIndex]
+    const lineTokens = tokens.filter(t => {
+      const startInLine = t.start >= (lineIndex === 0 ? 0 : text.indexOf(lines[lineIndex], text.indexOf(lines[lineIndex - 1]) + lines[lineIndex - 1].length + 1))
+      return startInLine
+    })
+
+    if (lineTokens.length === 0) return
+
+    const totalCount = lineTokens.length
+    const maskCount = Math.round(totalCount * (percentage / 100))
+    const indices = lineTokens.map(t => tokens.indexOf(t))
+    const shuffled = [...indices].sort(() => Math.random() - 0.5)
+    const toMask = new Set(shuffled.slice(0, maskCount))
+
+    setMaskedIndices(toMask)
+    setRevealedIndices(new Set())
+  }, [tokens])
+
   return {
     documents,
     currentDocId,
@@ -202,6 +225,7 @@ export function useMasker() {
     renameDocument,
     selectDocument,
     applyMask,
+    applyLineMask,
     revealToken,
     clearMask
   }
