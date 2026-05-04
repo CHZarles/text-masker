@@ -1,0 +1,54 @@
+{
+  "planPath": "docs/superpowers/plans/2026-05-04-text-masker-plan.md",
+  "tasks": [
+    {
+      "id": 0,
+      "subject": "Task 0: 初始化项目",
+      "status": "pending",
+      "description": "**Goal:** 创建 React + Vite 项目结构\n\n**Files:**\n- package.json, vite.config.js, index.html\n- src/main.jsx, src/App.jsx\n- src/styles/index.css\n\n**Acceptance Criteria:**\n- [ ] npm install 成功\n- [ ] npm run dev 可启动开发服务器\n- [ ] 页面可访问并显示基础内容\n\n**Verify:** npm run dev → Vite dev server 启动\n\n```json:metadata\n{\"files\": [\"package.json\", \"vite.config.js\", \"index.html\", \"src/main.jsx\", \"src/App.jsx\", \"src/styles/index.css\"], \"verifyCommand\": \"npm run dev\", \"acceptanceCriteria\": [\"npm install success\", \"dev server starts\"]}\n```"
+    },
+    {
+      "id": 1,
+      "subject": "Task 1: 创建 useMasker Hook",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** 实现核心掩盖逻辑\n\n**Files:**\n- Create: src/hooks/useMasker.js\n\n**Acceptance Criteria:**\n- [ ] 将文本按句子/标点分割成片段\n- [ ] 根据百分比随机选择要掩盖的片段\n- [ ] 每次调用返回不同的随机结果\n- [ ] 支持点击揭示功能\n\n**Verify:** 单元测试验证随机性和一致性\n\n```json:metadata\n{\"files\": [\"src/hooks/useMasker.js\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"text split into segments\", \"random masking based on percentage\", \"reveal functionality\"]}\n```"
+    },
+    {
+      "id": 2,
+      "subject": "Task 2: 创建 InputArea 组件",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** 可折叠的文本输入区域\n\n**Files:**\n- Create: src/components/InputArea.jsx\n- Modify: src/styles/index.css\n\n**Acceptance Criteria:**\n- [ ] 显示 textarea 用于粘贴文字\n- [ ] 右上角有折叠按钮\n- [ ] 折叠后隐藏 textarea\n- [ ] 展开后可编辑\n\n**Verify:** 点击折叠按钮可切换显示/隐藏\n\n```json:metadata\n{\"files\": [\"src/components/InputArea.jsx\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"textarea displays\", \"collapse button works\", \"toggle visibility\"]}\n```"
+    },
+    {
+      "id": 3,
+      "subject": "Task 3: 创建 ControlBar 组件",
+      "status": "pending",
+      "blockedBy": [0],
+      "description": "**Goal:** 百分比选择按钮组和 Mask 按钮\n\n**Files:**\n- Create: src/components/ControlBar.jsx\n\n**Acceptance Criteria:**\n- [ ] 显示 25%、50%、75%、100% 四个按钮\n- [ ] 当前选中的百分比有高亮样式\n- [ ] Mask 按钮在右侧\n- [ ] 按钮可点击触发对应功能\n\n**Verify:** 点击按钮可切换选中状态，Mask 按钮触发掩盖\n\n```json:metadata\n{\"files\": [\"src/components/ControlBar.jsx\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"four percentage buttons\", \"active state highlight\", \"mask button functional\"]}\n```"
+    },
+    {
+      "id": 4,
+      "subject": "Task 4: 创建 MaskedTextDisplay 组件",
+      "status": "pending",
+      "blockedBy": [1],
+      "description": "**Goal:** 显示掩盖后的文字，支持点击揭示\n\n**Files:**\n- Create: src/components/MaskedTextDisplay.jsx\n\n**Acceptance Criteria:**\n- [ ] 显示所有文本片段\n- [ ] 被掩盖的片段显示为深色块\n- [ ] 点击掩盖块可显示原文（2秒后恢复）\n- [ ] 揭示时使用不同背景色\n\n**Verify:** 点击掩盖块可短暂显示原文\n\n```json:metadata\n{\"files\": [\"src/components/MaskedTextDisplay.jsx\"], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"segments display correctly\", \"masked blocks show\", \"click-to-reveal works\"]}\n```"
+    },
+    {
+      "id": 5,
+      "subject": "Task 5: 整合 App 组件",
+      "status": "pending",
+      "blockedBy": [1, 2, 3, 4],
+      "description": "**Goal:** 将所有组件组合在一起，完成功能\n\n**Files:**\n- Modify: src/App.jsx\n\n**Acceptance Criteria:**\n- [ ] InputArea 可输入并折叠\n- [ ] ControlBar 可切换百分比和触发 Mask\n- [ ] MaskedTextDisplay 显示正确\n- [ ] useMasker hook 连接所有逻辑\n- [ ] 整体布局美观\n\n**Verify:** 完整流程可运行\n\n```json:metadata\n{\"files\": [\"src/App.jsx\"], \"verifyCommand\": \"npm run dev\", \"acceptanceCriteria\": [\"all components integrated\", \"full flow works\"]}\n```"
+    },
+    {
+      "id": 6,
+      "subject": "Task 6: 最终检查与优化",
+      "status": "pending",
+      "blockedBy": [5],
+      "description": "**Goal:** 确保所有功能正常工作，样式美观\n\n**Acceptance Criteria:**\n- [ ] 无 console 错误\n- [ ] 所有按钮可点击\n- [ ] 掩盖效果正确显示\n- [ ] 点击揭示功能正常\n- [ ] 移动端正常显示\n\n**Verify:** 手动测试完整流程\n\n```json:metadata\n{\"files\": [], \"verifyCommand\": \"\", \"acceptanceCriteria\": [\"no console errors\", \"all buttons functional\", \"mobile responsive\"]}\n```"
+    }
+  ],
+  "lastUpdated": "2026-05-04T17:35:00+08:00"
+}
