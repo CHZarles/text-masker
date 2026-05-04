@@ -58,16 +58,53 @@ export function useMasker() {
     }
   })
 
-  const [currentDocId, setCurrentDocId] = useState(null)
+  const [currentDocId, setCurrentDocId] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? JSON.parse(saved).currentDocId ?? null : null
+    } catch {
+      return null
+    }
+  })
+
   const [tokens, setTokens] = useState([])
-  const [maskedIndices, setMaskedIndices] = useState(new Set())
+  const [maskedIndices, setMaskedIndices] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      const state = saved ? JSON.parse(saved) : {}
+      return new Set(state.maskedIndices ?? [])
+    } catch {
+      return new Set()
+    }
+  })
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
 
   // UI state - restored from localStorage on mount
-  const [lineModeEnabled, setLineModeEnabled] = useState(false)
-  const [selectedLines, setSelectedLines] = useState(new Set())
-  const [showMasked, setShowMasked] = useState(false)
+  const [lineModeEnabled, setLineModeEnabled] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? JSON.parse(saved).lineModeEnabled ?? false : false
+    } catch {
+      return false
+    }
+  })
+  const [selectedLines, setSelectedLines] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? new Set(JSON.parse(saved).selectedLines ?? []) : new Set()
+    } catch {
+      return new Set()
+    }
+  })
+  const [showMasked, setShowMasked] = useState(() => {
+    try {
+      const saved = localStorage.getItem(STATE_KEY)
+      return saved ? JSON.parse(saved).showMasked ?? false : false
+    } catch {
+      return false
+    }
+  })
 
   const currentDoc = documents.find(d => d.id === currentDocId)
   const originalText = currentDoc?.content || ''
@@ -263,16 +300,17 @@ export function useMasker() {
       lineModeEnabled,
       selectedLines: [...selectedLines],
       showMasked,
-      currentDocId
+      currentDocId,
+      maskedIndices: [...maskedIndices]
     }
     try {
       localStorage.setItem(STATE_KEY, JSON.stringify(state))
     } catch (e) {
       console.error('Failed to save state:', e)
     }
-  }, [lineModeEnabled, selectedLines, showMasked, currentDocId])
+  }, [lineModeEnabled, selectedLines, showMasked, currentDocId, maskedIndices])
 
-  // Restore UI state when document changes
+  // Restore UI state and document state when document changes
   useEffect(() => {
     if (!currentDocId) return
     try {
@@ -295,6 +333,14 @@ export function useMasker() {
       // ignore
     }
   }, [currentDocId])
+
+  // Initialize tokens and masked state when currentDoc is available
+  useEffect(() => {
+    if (currentDoc) {
+      setTokens(tokenizeText(currentDoc.content))
+      setMarkdownDetected(currentDoc.isMarkdown ?? isMarkdown(currentDoc.content))
+    }
+  }, [currentDoc])
 
   return {
     documents,
