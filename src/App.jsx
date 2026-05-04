@@ -9,6 +9,7 @@ function App() {
   const [editContent, setEditContent] = useState('')
   const [lineModeEnabled, setLineModeEnabled] = useState(false)
   const [selectedLines, setSelectedLines] = useState(new Set())
+  const [showMasked, setShowMasked] = useState(false)
   const textareaRef = useRef(null)
 
   const {
@@ -32,6 +33,7 @@ function App() {
   const handleMask = () => {
     if (lineModeEnabled && selectedLines.size > 0) {
       applyMultiLineMask(selectedLines, percentage, originalText)
+      setShowMasked(true)
     } else {
       applyMask(percentage)
     }
@@ -47,14 +49,7 @@ function App() {
       }
       return next
     })
-  }
-
-  const handleSelectAll = () => {
-    setSelectedLines(new Set(textLines.map((_, i) => i)))
-  }
-
-  const handleClearSelection = () => {
-    setSelectedLines(new Set())
+    setShowMasked(false)
   }
 
   const handlePrevLine = () => {
@@ -65,6 +60,7 @@ function App() {
         const newSet = new Set([first - 1])
         setSelectedLines(newSet)
         applyMultiLineMask(newSet, percentage, originalText)
+        setShowMasked(true)
       }
     }
   }
@@ -77,6 +73,7 @@ function App() {
         const newSet = new Set([last + 1])
         setSelectedLines(newSet)
         applyMultiLineMask(newSet, percentage, originalText)
+        setShowMasked(true)
       }
     }
   }
@@ -84,7 +81,17 @@ function App() {
   const handleExitLineMode = () => {
     setLineModeEnabled(false)
     setSelectedLines(new Set())
+    setShowMasked(false)
     applyMask(percentage)
+  }
+
+  const handleEnterLineMode = () => {
+    setLineModeEnabled(true)
+    if (selectedLines.size === 0) {
+      setSelectedLines(new Set([0]))
+    }
+    applyMultiLineMask(selectedLines.size > 0 ? selectedLines : new Set([0]), percentage, originalText)
+    setShowMasked(true)
   }
 
   const handleEdit = () => {
@@ -130,14 +137,6 @@ function App() {
     }
   }
 
-  const handleEnterLineMode = () => {
-    setLineModeEnabled(true)
-    if (selectedLines.size === 0) {
-      setSelectedLines(new Set([0]))
-    }
-    applyMultiLineMask(selectedLines.size > 0 ? selectedLines : new Set([0]), percentage, originalText)
-  }
-
   return (
     <div className="app">
       <aside className="sidebar">
@@ -179,9 +178,9 @@ function App() {
           <button
             className="mask-btn"
             onClick={handleMask}
-            disabled={!originalText.trim()}
+            disabled={!originalText.trim() || (lineModeEnabled && selectedLines.size === 0)}
           >
-            {lineModeEnabled ? '重新开始' : '开始背诵'}
+            {showMasked ? '重新开始' : (lineModeEnabled ? '开始背诵' : '开始背诵')}
           </button>
         </div>
       </aside>
@@ -246,7 +245,11 @@ function App() {
 
                 <div className="text-display">
                   {lineModeEnabled ? (
-                    renderSelectableLines(textLines, selectedLines, handleLineToggle)
+                    showMasked ? (
+                      renderLineMasked(textLines, selectedLines, originalText, tokens, maskedIndices, revealedIndices, revealToken)
+                    ) : (
+                      renderSelectableLines(textLines, selectedLines, handleLineToggle)
+                    )
                   ) : (
                     renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
                   )}
@@ -300,6 +303,7 @@ function App() {
                       setPage('study')
                       setLineModeEnabled(false)
                       setSelectedLines(new Set())
+                      setShowMasked(false)
                       setTimeout(() => applyMask(percentage), 50)
                     }}>
                       <h3 className="doc-name">
@@ -333,7 +337,7 @@ function renderSelectableLines(textLines, selectedLines, onToggle) {
   return (
     <div className="line-select">
       <div className="line-selection-hint">
-        点击行以选择/取消选择
+        点击行以选择/取消选择，选中后点击"开始背诵"
       </div>
       {textLines.map((line, index) => (
         <div
@@ -348,6 +352,95 @@ function renderSelectableLines(textLines, selectedLines, onToggle) {
       ))}
     </div>
   )
+}
+
+// 渲染选中行的掩码内容
+function renderLineMasked(textLines, selectedLines, fullText, tokens, maskedIndices, revealedIndices, onReveal) {
+  return (
+    <div className="line-masked-display">
+      {textLines.map((line, index) => {
+        if (selectedLines.has(index)) {
+          // 计算这一行在全文中的位置
+          let lineStart = 0
+          for (let i = 0; i < index; i++) {
+            lineStart += textLines[i].length + 1
+          }
+          const lineEnd = lineStart + line.length
+
+          // 找出这一行的 tokens
+          const lineTokenIndices = []
+          tokens.forEach((token, tokenIdx) => {
+            if (token.start >= lineStart && token.end <= lineEnd) {
+              lineTokenIndices.push(tokenIdx)
+            }
+          })
+
+          return (
+            <div key={index} className="line-item masked-line">
+              <span className="line-number">{index + 1}</span>
+              <span className="line-mask-content">
+                {renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, revealedIndices, onReveal)}
+              </span>
+            </div>
+          )
+        }
+        return (
+          <div key={index} className="line-item muted">
+            <span className="line-number">{index + 1}</span>
+            <span className="line-text muted">{line || '\u00A0'}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// 渲染一行中的 tokens
+function renderLineTokens(line, lineTokenIndices, tokens, maskedIndices, revealedIndices, onReveal) {
+  const elements = []
+  let lastPos = 0
+
+  lineTokenIndices.forEach((tokenIdx) => {
+    const token = tokens[tokenIdx]
+    const pos = token.start
+    // pos 需要相对于当前行重新计算
+    const relPos = pos
+
+    if (pos > lastPos) {
+      elements.push(
+        <span key={`pre-${tokenIdx}`}>{line.slice(lastPos, pos)}</span>
+      )
+    }
+
+    const isMasked = maskedIndices.has(tokenIdx)
+    const isRevealed = revealedIndices.has(tokenIdx)
+
+    if (isMasked && !isRevealed) {
+      elements.push(
+        <span
+          key={`mask-${tokenIdx}`}
+          className="masked-text"
+          onClick={() => onReveal(tokenIdx)}
+        >
+          {token.text}
+        </span>
+      )
+    } else {
+      elements.push(
+        <span key={`text-${tokenIdx}`}>{token.text}</span>
+      )
+    }
+
+    lastPos = pos + token.text.length
+  })
+
+  if (lastPos < line.length) {
+    elements.push(
+      <span key="post">{line.slice(lastPos)}</span>
+    )
+  }
+
+  return elements
 }
 
 // 普通文本渲染（带掩码）
