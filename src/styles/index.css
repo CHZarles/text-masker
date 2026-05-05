@@ -143,6 +143,37 @@ body {
   padding: 4px 0;
 }
 
+.doc-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  margin-bottom: 8px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.doc-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.edit-title-btn {
+  padding: 6px 12px;
+  background: var(--gray-100);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.edit-title-btn:hover {
+  background: var(--gray-200);
+  color: var(--text);
+}
+
 .sidebar-controls {
   margin-top: auto;
   display: flex;

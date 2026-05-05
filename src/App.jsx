@@ -12,6 +12,7 @@ function App() {
   const {
     documents,
     currentDocId,
+    currentDoc,
     originalText,
     tokens,
     maskedIndices,
@@ -19,6 +20,7 @@ function App() {
     createDocument,
     updateDocument,
     deleteDocument,
+    renameDocument,
     selectDocument,
     applyMask,
     applyMultiLineMask,
@@ -158,6 +160,14 @@ function App() {
   const handleEdit = () => {
     setEditContent(originalText)
     setIsEditing(true)
+  }
+
+  const handleRename = () => {
+    if (!currentDoc) return
+    const newName = prompt('请输入新标题:', currentDoc.name)
+    if (newName && newName.trim()) {
+      renameDocument(currentDocId, newName.trim())
+    }
   }
 
   const handleSaveEdit = () => {
@@ -341,6 +351,15 @@ function App() {
                         </button>
                       </>
                     )}
+                  </div>
+                )}
+
+                {currentDoc && !isEditing && (
+                  <div className="doc-title-bar">
+                    <span className="doc-title">{currentDoc.name}</span>
+                    <button className="edit-title-btn" onClick={handleRename}>
+                      重命名
+                    </button>
                   </div>
                 )}
 
