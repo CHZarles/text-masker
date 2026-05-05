@@ -217,7 +217,7 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [])
 
-  // Export all data to JSON file
+  // Export all data to JSON file (single file for simple export)
   const exportData = useCallback(() => {
     const data = {
       documents,
@@ -269,27 +269,31 @@ export function useMasker() {
     try {
       const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
 
-      // Create backup file
-      const data = {
-        documents,
-        exportedAt: new Date().toISOString(),
-        version: '1.0'
+      // Save each document as a separate file
+      const manifest = { documents: [], updatedAt: new Date().toISOString() }
+
+      for (const doc of documents) {
+        const fileName = `doc-${doc.id}.json`
+        const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+        const writable = await fileHandle.createWritable()
+        await writable.write(JSON.stringify(doc, null, 2))
+        await writable.close()
+
+        manifest.documents.push({
+          id: doc.id,
+          name: doc.name,
+          createdAt: doc.createdAt,
+          updatedAt: doc.updatedAt
+        })
       }
-      const fileName = `text-masker-backup-${new Date().toISOString().split('T')[0]}.json`
 
-      for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file' && entry.name === fileName) {
-          await dirHandle.removeEntry(fileName)
-          break
-        }
-      }
+      // Save manifest
+      const manifestHandle = await dirHandle.getFileHandle('manifest.json', { create: true })
+      const manifestWritable = await manifestHandle.createWritable()
+      await manifestWritable.write(JSON.stringify(manifest, null, 2))
+      await manifestWritable.close()
 
-      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
-      const writable = await fileHandle.createWritable()
-      await writable.write(JSON.stringify(data, null, 2))
-      await writable.close()
-
-      return { success: true, fileName }
+      return { success: true, count: documents.length }
     } catch (err) {
       if (err.name !== 'AbortError') {
         throw err
@@ -307,27 +311,29 @@ export function useMasker() {
     try {
       const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
       let mergedCount = 0
-      let fileName = null
 
       for await (const entry of dirHandle.values()) {
-        if (entry.kind === 'file' && entry.name.startsWith('text-masker-backup-') && entry.name.endsWith('.json')) {
-          fileName = entry.name
-          const file = await entry.getFile()
-          const content = await file.text()
-          const data = JSON.parse(content)
+        if (entry.kind === 'file' && entry.name.startsWith('doc-') && entry.name.endsWith('.json')) {
+          try {
+            const file = await entry.getFile()
+            const content = await file.text()
+            const doc = JSON.parse(content)
 
-          if (data.documents && Array.isArray(data.documents)) {
             setDocuments(prev => {
               const existingIds = new Set(prev.map(d => d.id))
-              const newDocs = data.documents.filter(d => !existingIds.has(d.id))
-              mergedCount = newDocs.length
-              return [...prev, ...newDocs]
+              if (!existingIds.has(doc.id)) {
+                mergedCount++
+                return [...prev, doc]
+              }
+              return prev
             })
+          } catch (e) {
+            console.warn(`Failed to load ${entry.name}:`, e)
           }
         }
       }
 
-      return { success: true, fileName, mergedCount }
+      return { success: true, mergedCount }
     } catch (err) {
       if (err.name !== 'AbortError') {
         throw err
