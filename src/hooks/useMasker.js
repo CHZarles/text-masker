@@ -433,7 +433,7 @@ export function useMasker() {
   // Restore tokens when currentDocId changes
   useEffect(() => {
     if (currentDocId && currentDoc) {
-      setTokens(tokenizeText(currentDoc.content))
+      setTokens(jiebaTokenize(currentDoc.content))
       setMarkdownDetected(currentDoc.isMarkdown ?? isMarkdown(currentDoc.content))
     }
   }, [currentDocId])
