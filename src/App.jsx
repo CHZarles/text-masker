@@ -262,11 +262,11 @@ function App() {
           <button className="sync-btn" onClick={handlePickFolder} title="选择同步文件夹">
             文件夹
           </button>
-          <button className="sync-btn" onClick={handleSaveToFolder} title="保存到文件夹">
-            上传
-          </button>
-          <button className="sync-btn" onClick={handleLoadFromFolder} title="从文件夹加载">
+          <button className="sync-btn" onClick={handleSaveToFolder} title="下载到文件夹">
             下载
+          </button>
+          <button className="sync-btn" onClick={handleLoadFromFolder} title="从文件夹上传">
+            上传
           </button>
           <input
             ref={fileInputRef}
