@@ -30,7 +30,9 @@ function App() {
     showMasked,
     setShowMasked,
     exportData,
-    importData
+    importData,
+    saveToFolder,
+    loadFromFolder
   } = useMasker()
 
   const [importMessage, setImportMessage] = useState('')
@@ -119,6 +121,32 @@ function App() {
     e.target.value = ''
   }
 
+  const handleSaveToFolder = async () => {
+    try {
+      const result = await saveToFolder()
+      if (result.success) {
+        setImportMessage(`已保存到文件夹`)
+        setTimeout(() => setImportMessage(''), 3000)
+      }
+    } catch (err) {
+      setImportMessage(`保存失败: ${err.message}`)
+      setTimeout(() => setImportMessage(''), 5000)
+    }
+  }
+
+  const handleLoadFromFolder = async () => {
+    try {
+      const result = await loadFromFolder()
+      if (result.success) {
+        setImportMessage(`从文件夹恢复了 ${result.mergedCount} 个文档`)
+        setTimeout(() => setImportMessage(''), 3000)
+      }
+    } catch (err) {
+      setImportMessage(`加载失败: ${err.message}`)
+      setTimeout(() => setImportMessage(''), 5000)
+    }
+  }
+
   const handleEnterLineMode = () => {
     setLineModeEnabled(true)
     setShowMasked(false)
@@ -199,11 +227,11 @@ function App() {
         <div className="sidebar-divider" />
 
         <div className="sidebar-sync">
-          <button className="sync-btn" onClick={handleExport} title="导出到本地">
-            导出
+          <button className="sync-btn" onClick={handleSaveToFolder} title="保存到指定文件夹">
+            保存
           </button>
-          <button className="sync-btn" onClick={handleImportClick} title="从本地导入">
-            导入
+          <button className="sync-btn" onClick={handleLoadFromFolder} title="从指定文件夹恢复">
+            恢复
           </button>
           <input
             ref={fileInputRef}

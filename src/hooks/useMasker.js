@@ -260,6 +260,82 @@ export function useMasker() {
     })
   }, [])
 
+  // Save to a specific folder using File System Access API
+  const saveToFolder = useCallback(async () => {
+    if (!('showDirectoryPicker' in window)) {
+      alert('您的浏览器不支持选择文件夹功能。请使用 Chrome/Edge 浏览器。')
+      return
+    }
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
+
+      // Create backup file
+      const data = {
+        documents,
+        exportedAt: new Date().toISOString(),
+        version: '1.0'
+      }
+      const fileName = `text-masker-backup-${new Date().toISOString().split('T')[0]}.json`
+
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file' && entry.name === fileName) {
+          await dirHandle.removeEntry(fileName)
+          break
+        }
+      }
+
+      const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+      const writable = await fileHandle.createWritable()
+      await writable.write(JSON.stringify(data, null, 2))
+      await writable.close()
+
+      return { success: true, fileName }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        throw err
+      }
+      return { cancelled: true }
+    }
+  }, [documents])
+
+  // Load from a specific folder using File System Access API
+  const loadFromFolder = useCallback(async () => {
+    if (!('showDirectoryPicker' in window)) {
+      alert('您的浏览器不支持选择文件夹功能。请使用 Chrome/Edge 浏览器。')
+      return
+    }
+    try {
+      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      let mergedCount = 0
+      let fileName = null
+
+      for await (const entry of dirHandle.values()) {
+        if (entry.kind === 'file' && entry.name.startsWith('text-masker-backup-') && entry.name.endsWith('.json')) {
+          fileName = entry.name
+          const file = await entry.getFile()
+          const content = await file.text()
+          const data = JSON.parse(content)
+
+          if (data.documents && Array.isArray(data.documents)) {
+            setDocuments(prev => {
+              const existingIds = new Set(prev.map(d => d.id))
+              const newDocs = data.documents.filter(d => !existingIds.has(d.id))
+              mergedCount = newDocs.length
+              return [...prev, ...newDocs]
+            })
+          }
+        }
+      }
+
+      return { success: true, fileName, mergedCount }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        throw err
+      }
+      return { cancelled: true }
+    }
+  }, [])
+
   // 行级掩码
   const applyLineMask = useCallback((lineIndex, percentage, text) => {
     const lines = text.split('\n')
@@ -393,6 +469,8 @@ export function useMasker() {
     revealToken,
     clearMask,
     exportData,
-    importData
+    importData,
+    saveToFolder,
+    loadFromFolder
   }
 }
