@@ -28,8 +28,13 @@ function App() {
     selectedLines,
     setSelectedLines,
     showMasked,
-    setShowMasked
+    setShowMasked,
+    exportData,
+    importData
   } = useMasker()
+
+  const [importMessage, setImportMessage] = useState('')
+  const fileInputRef = useRef(null)
 
   const textLines = originalText ? originalText.split('\n') : []
 
@@ -90,6 +95,28 @@ function App() {
 
   const handleBackToSelection = () => {
     setShowMasked(false)
+  }
+
+  const handleExport = () => {
+    exportData()
+  }
+
+  const handleImportClick = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    try {
+      const result = await importData(file)
+      setImportMessage(`成功导入 ${result.added} 个文档`)
+      setTimeout(() => setImportMessage(''), 3000)
+    } catch (err) {
+      setImportMessage(`导入失败: ${err.message}`)
+      setTimeout(() => setImportMessage(''), 5000)
+    }
+    e.target.value = ''
   }
 
   const handleEnterLineMode = () => {
@@ -168,6 +195,27 @@ function App() {
             文档
           </button>
         </nav>
+
+        <div className="sidebar-divider" />
+
+        <div className="sidebar-sync">
+          <button className="sync-btn" onClick={handleExport} title="导出到本地">
+            导出
+          </button>
+          <button className="sync-btn" onClick={handleImportClick} title="从本地导入">
+            导入
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            style={{ display: 'none' }}
+            onChange={handleFileChange}
+          />
+          {importMessage && (
+            <span className="import-message">{importMessage}</span>
+          )}
+        </div>
 
         <div className="sidebar-controls">
           <div className="percentage-control">

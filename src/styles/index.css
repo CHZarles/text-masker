@@ -108,6 +108,41 @@ body {
   margin: 12px 0;
 }
 
+.sidebar-sync {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  padding: 0 8px;
+}
+
+.sync-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 32px;
+  background: var(--gray-100);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.sync-btn:hover {
+  background: var(--gray-200);
+  color: var(--text);
+}
+
+.import-message {
+  font-size: 9px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 4px 0;
+}
+
 .sidebar-controls {
   margin-top: auto;
   display: flex;

@@ -217,6 +217,49 @@ export function useMasker() {
     setRevealedIndices(new Set())
   }, [])
 
+  // Export all data to JSON file
+  const exportData = useCallback(() => {
+    const data = {
+      documents,
+      exportedAt: new Date().toISOString(),
+      version: '1.0'
+    }
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `text-masker-backup-${new Date().toISOString().split('T')[0]}.json`
+    a.click()
+    URL.revokeObjectURL(url)
+  }, [documents])
+
+  // Import data from JSON file
+  const importData = useCallback((file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e) => {
+        try {
+          const data = JSON.parse(e.target.result)
+          if (!data.documents || !Array.isArray(data.documents)) {
+            reject(new Error('Invalid file format'))
+            return
+          }
+          // Merge with existing documents (skip duplicates by id)
+          setDocuments(prev => {
+            const existingIds = new Set(prev.map(d => d.id))
+            const newDocs = data.documents.filter(d => !existingIds.has(d.id))
+            return [...prev, ...newDocs]
+          })
+          resolve({ added: data.documents.length })
+        } catch (err) {
+          reject(err)
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsText(file)
+    })
+  }, [])
+
   // 行级掩码
   const applyLineMask = useCallback((lineIndex, percentage, text) => {
     const lines = text.split('\n')
@@ -348,6 +391,8 @@ export function useMasker() {
     applyMask,
     applyMultiLineMask,
     revealToken,
-    clearMask
+    clearMask,
+    exportData,
+    importData
   }
 }
