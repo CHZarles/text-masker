@@ -14,38 +14,102 @@ export async function initJieba() {
     })
     .catch(err => {
       console.error('Failed to init jieba:', err)
+      jiebaReady = false
       return false
     })
 
   return jiebaInitPromise
 }
 
+// Synchronous tokenization with graceful fallback if jieba isn't ready
 export function tokenizeText(text) {
   if (!text.trim()) return []
 
-  const tokens = []
-  const words = cut(text, true) // precise mode
+  // Fallback: simple character-based tokenization
+  const fallbackTokenize = () => {
+    const tokens = []
+    let currentWord = ''
+    let wordStart = 0
 
-  let pos = 0
-  for (const word of words) {
-    const start = text.indexOf(word, pos)
-    if (start === -1) {
-      pos += word.length
-      continue
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i]
+      const isChinese = char >= '\u4e00' && char <= '\u9fa5'
+      const isPunctuation = /[\u3002,\uFF0C,\uFF01,\uFF1F,\uFF1B,\uFF1A\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E]/.test(char)
+      const isWhitespace = /\s/.test(char)
+
+      let charType = 'other'
+      if (isChinese) charType = 'chinese'
+      else if (isPunctuation) charType = 'punct'
+      else if (isWhitespace) charType = 'space'
+
+      // Punctuation and whitespace become separate tokens
+      if (isPunctuation || isWhitespace) {
+        if (currentWord) {
+          tokens.push({ id: tokens.length, text: currentWord, start: wordStart, end: i })
+          currentWord = ''
+        }
+        tokens.push({ id: tokens.length, text: char, start: i, end: i + 1 })
+      } else {
+        // Non-punctuation character
+        if (currentWord && charType !== 'other') {
+          // Check if previous char was Chinese and current is other (Latin, number)
+          // or previous was other and current is Chinese - need to separate
+          const prevLast = currentWord.slice(-1)
+          const prevIsChinese = prevLast >= '\u4e00' && prevLast <= '\u9fa5'
+          if (prevIsChinese !== (charType === 'chinese')) {
+            // Script type changed, create token and start new word
+            tokens.push({ id: tokens.length, text: currentWord, start: wordStart, end: i })
+            currentWord = ''
+          }
+        }
+        if (!currentWord) {
+          wordStart = i
+        }
+        currentWord += char
+      }
     }
-    tokens.push({
-      id: tokens.length,
-      text: word,
-      start: start,
-      end: start + word.length
-    })
-    pos = start + word.length
+
+    if (currentWord) {
+      tokens.push({ id: tokens.length, text: currentWord, start: wordStart, end: text.length })
+    }
+
+    return tokens
   }
 
-  // Fallback if jieba didn't work
-  if (tokens.length === 0) {
-    return [{ id: 0, text: text.trim(), start: 0, end: text.length }]
+  // If jieba isn't ready, use fallback
+  if (!jiebaReady) {
+    console.warn('Jieba not ready, using fallback tokenizer')
+    return fallbackTokenize()
   }
 
-  return tokens
+  try {
+    const tokens = []
+    const words = cut(text, true) // precise mode
+
+    let pos = 0
+    for (const word of words) {
+      const start = text.indexOf(word, pos)
+      if (start === -1) {
+        pos += word.length
+        continue
+      }
+      tokens.push({
+        id: tokens.length,
+        text: word,
+        start: start,
+        end: start + word.length
+      })
+      pos = start + word.length
+    }
+
+    // Fallback if jieba didn't produce results
+    if (tokens.length === 0) {
+      return fallbackTokenize()
+    }
+
+    return tokens
+  } catch (err) {
+    console.error('Jieba tokenization failed:', err)
+    return fallbackTokenize()
+  }
 }

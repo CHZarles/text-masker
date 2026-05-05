@@ -1,5 +1,6 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useMasker } from './hooks/useMasker'
+import { initJieba } from './utils/jieba'
 import './styles/index.css'
 
 function App() {
@@ -8,6 +9,19 @@ function App() {
   const [isEditing, setIsEditing] = useState(false)
   const [editContent, setEditContent] = useState('')
   const textareaRef = useRef(null)
+
+  // Initialize jieba on app load
+  useEffect(() => {
+    initJieba().then(ready => {
+      if (ready) {
+        console.log('Jieba initialized successfully')
+      } else {
+        console.warn('Jieba initialization failed, using fallback tokenizer')
+      }
+    }).catch(err => {
+      console.error('Jieba init error:', err)
+    })
+  }, [])
 
   const {
     documents,
