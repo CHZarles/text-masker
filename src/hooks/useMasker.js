@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { initJieba, tokenizeText as jiebaTokenize } from '../utils/jieba'
 
 const STORAGE_KEY = 'text-masker-documents'
 const STATE_KEY = 'text-masker-state'
@@ -12,115 +13,6 @@ const getStorageItem = (key, fallback = null) => {
   } catch {
     return fallback
   }
-}
-
-// Chinese word patterns (common 2-4 character words)
-const CHINESE_WORDS = new Set([
-  // 2-char common words
-  '我们', '你们', '他们', '这个', '那个', '什么', '这样', '那样', '如何', '为什么',
-  '因为', '所以', '但是', '而且', '或者', '如果', '虽然', '即使', '不但', '而且',
-  '可以', '没有', '有些', '所有', '一直', '已经', '自己', '知道', '没有', '这里',
-  '那里', '什么', '怎么', '多么', '其中', '其他', '一个', '一些', '一定', '也是',
-  '还是', '只是', '就是', '不是', '能够', '可能', '应该', '开始', '继续', '结束',
-  '然后', '所以', '因为', '因此', '于是', '以及', '与其', '不如', '宁可', '无论',
-  '即使', '只有', '只要', '不仅', '可是', '然而', '并且', '或者', '并且',
-  // Common phrases
-  '不是', '是的', '没有', '有的', '是的', '不是', '可以', '不能', '应该', '必须',
-  '中国', '美国', '北京', '上海', '世界', '国家', '人们', '社会', '问题', '方法',
-])
-
-// Chinese stop words (shouldn't be masked alone)
-const STOP_WORDS = new Set([
-  '的', '了', '在', '是', '我', '有', '和', '就', '不', '人', '都', '一', '一个', '上', '也', '很', '到', '说', '要', '去', '你', '会', '着', '没有', '看', '好', '自己', '这', '那', '么', '它', '来', '为', '与', '而', '及', '或', '以', '于', '从', '对', '把', '被', '给', '让', '向', '往', '在', '比', '等', '着', '过', '地', '得', '吗', '呢', '吧', '啊', '呀', '哦', '嗯', '啦', '嘛',
-])
-
-// Common punctuation (shouldn't be masked)
-const PUNCTUATION = new Set(['\u3002', '\uFF0C', '\uFF01', '\uFF1F', '\uFF1B', '\uFF1A'])
-
-function tokenizeText(text) {
-  if (!text.trim()) return []
-
-  const tokens = []
-  let i = 0
-
-  while (i < text.length) {
-    const char = text[i]
-
-    // Skip punctuation
-    if (PUNCTUATION.has(char)) {
-      i++
-      continue
-    }
-
-    // English word
-    if (/[a-zA-Z]/.test(char)) {
-      let j = i
-      while (j < text.length && /[a-zA-Z]/.test(text[j])) j++
-      const word = text.slice(i, j)
-      tokens.push({ id: tokens.length, text: word, start: i, end: j })
-      i = j
-      continue
-    }
-
-    // Number
-    if (/[0-9]/.test(char)) {
-      let j = i
-      while (j < text.length && /[0-9.]/.test(text[j])) j++
-      const num = text.slice(i, j)
-      tokens.push({ id: tokens.length, text: num, start: i, end: j })
-      i = j
-      continue
-    }
-
-    // Chinese character
-    if (char >= '\u4e00' && char <= '\u9fa5') {
-      // Try 4 chars
-      if (i + 4 <= text.length) {
-        const four = text.slice(i, i + 4)
-        if (CHINESE_WORDS.has(four)) {
-          tokens.push({ id: tokens.length, text: four, start: i, end: i + 4 })
-          i += 4
-          continue
-        }
-      }
-
-      // Try 3 chars
-      if (i + 3 <= text.length) {
-        const three = text.slice(i, i + 3)
-        // Common 3-char patterns
-        if (CHINESE_WORDS.has(three)) {
-          tokens.push({ id: tokens.length, text: three, start: i, end: i + 3 })
-          i += 3
-          continue
-        }
-      }
-
-      // Try 2 chars (most common)
-      if (i + 2 <= text.length) {
-        const two = text.slice(i, i + 2)
-        // Skip if it's a stop word
-        if (!STOP_WORDS.has(two)) {
-          tokens.push({ id: tokens.length, text: two, start: i, end: i + 2 })
-          i += 2
-          continue
-        }
-      }
-
-      // Single character (stop word or rare)
-      tokens.push({ id: tokens.length, text: char, start: i, end: i + 1 })
-      i++
-      continue
-    }
-
-    // Other characters
-    i++
-  }
-
-  if (tokens.length === 0) {
-    return [{ id: 0, text: text.trim(), start: 0, end: text.length }]
-  }
-
-  return tokens
 }
 
 function isMarkdown(text) {
@@ -202,7 +94,7 @@ export function useMasker() {
     const newDocs = [...documents, newDoc]
     setDocuments(newDocs)
     setCurrentDocId(newDoc.id)
-    setTokens(tokenizeText(content))
+    setTokens(jiebaTokenize(content))
     setMaskedIndices(new Set())
     setRevealedIndices(new Set())
     setMarkdownDetected(markdownDetected)
@@ -223,7 +115,7 @@ export function useMasker() {
     })
     setDocuments(newDocs)
     if (id === currentDocId) {
-      setTokens(tokenizeText(content))
+      setTokens(jiebaTokenize(content))
       setMaskedIndices(new Set())
       setRevealedIndices(new Set())
       setMarkdownDetected(isMarkdown(content))
@@ -238,7 +130,7 @@ export function useMasker() {
       const remaining = newDocs[0]
       if (remaining) {
         setCurrentDocId(remaining.id)
-        setTokens(tokenizeText(remaining.content))
+        setTokens(jiebaTokenize(remaining.content))
         setMaskedIndices(new Set())
         setRevealedIndices(new Set())
         setMarkdownDetected(remaining.isMarkdown ?? isMarkdown(remaining.content))
@@ -268,7 +160,7 @@ export function useMasker() {
     const doc = documents.find(d => d.id === id)
     if (doc) {
       setCurrentDocId(id)
-      setTokens(tokenizeText(doc.content))
+      setTokens(jiebaTokenize(doc.content))
       setMaskedIndices(new Set())
       setRevealedIndices(new Set())
       setMarkdownDetected(doc.isMarkdown ?? isMarkdown(doc.content))
