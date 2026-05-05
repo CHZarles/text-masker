@@ -67,6 +67,9 @@ export function useMasker() {
     return state.currentDocId ?? null
   })
 
+  // Persistent folder handle for sync
+  const [folderHandle, setFolderHandle] = useState(null)
+
   const [tokens, setTokens] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(() => {
     const state = getStorageItem(STATE_KEY, {})
@@ -260,21 +263,36 @@ export function useMasker() {
     })
   }, [])
 
-  // Save to a specific folder using File System Access API
-  const saveToFolder = useCallback(async () => {
+  // Pick and store folder handle
+  const pickFolder = useCallback(async () => {
     if (!('showDirectoryPicker' in window)) {
       alert('您的浏览器不支持选择文件夹功能。请使用 Chrome/Edge 浏览器。')
       return
     }
     try {
       const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
+      setFolderHandle(dirHandle)
+      return { success: true }
+    } catch (err) {
+      if (err.name !== 'AbortError') {
+        throw err
+      }
+      return { cancelled: true }
+    }
+  }, [])
 
+  // Save to stored folder handle
+  const saveToFolder = useCallback(async () => {
+    if (!folderHandle) {
+      return { noFolder: true }
+    }
+    try {
       // Save each document as a separate file
       const manifest = { documents: [], updatedAt: new Date().toISOString() }
 
       for (const doc of documents) {
         const fileName = `doc-${doc.id}.json`
-        const fileHandle = await dirHandle.getFileHandle(fileName, { create: true })
+        const fileHandle = await folderHandle.getFileHandle(fileName, { create: true })
         const writable = await fileHandle.createWritable()
         await writable.write(JSON.stringify(doc, null, 2))
         await writable.close()
@@ -288,31 +306,26 @@ export function useMasker() {
       }
 
       // Save manifest
-      const manifestHandle = await dirHandle.getFileHandle('manifest.json', { create: true })
+      const manifestHandle = await folderHandle.getFileHandle('manifest.json', { create: true })
       const manifestWritable = await manifestHandle.createWritable()
       await manifestWritable.write(JSON.stringify(manifest, null, 2))
       await manifestWritable.close()
 
       return { success: true, count: documents.length }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        throw err
-      }
-      return { cancelled: true }
+      throw err
     }
-  }, [documents])
+  }, [folderHandle, documents])
 
-  // Load from a specific folder using File System Access API
+  // Load from stored folder handle
   const loadFromFolder = useCallback(async () => {
-    if (!('showDirectoryPicker' in window)) {
-      alert('您的浏览器不支持选择文件夹功能。请使用 Chrome/Edge 浏览器。')
-      return
+    if (!folderHandle) {
+      return { noFolder: true }
     }
     try {
-      const dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' })
       let mergedCount = 0
 
-      for await (const entry of dirHandle.values()) {
+      for await (const entry of folderHandle.values()) {
         if (entry.kind === 'file' && entry.name.startsWith('doc-') && entry.name.endsWith('.json')) {
           try {
             const file = await entry.getFile()
@@ -335,12 +348,9 @@ export function useMasker() {
 
       return { success: true, mergedCount }
     } catch (err) {
-      if (err.name !== 'AbortError') {
-        throw err
-      }
-      return { cancelled: true }
+      throw err
     }
-  }, [])
+  }, [folderHandle])
 
   // 行级掩码
   const applyLineMask = useCallback((lineIndex, percentage, text) => {
@@ -477,6 +487,7 @@ export function useMasker() {
     exportData,
     importData,
     saveToFolder,
-    loadFromFolder
+    loadFromFolder,
+    pickFolder
   }
 }

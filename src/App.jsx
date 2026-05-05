@@ -34,7 +34,8 @@ function App() {
     exportData,
     importData,
     saveToFolder,
-    loadFromFolder
+    loadFromFolder,
+    pickFolder
   } = useMasker()
 
   const [importMessage, setImportMessage] = useState('')
@@ -127,11 +128,14 @@ function App() {
     try {
       const result = await saveToFolder()
       if (result.success) {
-        setImportMessage(`已保存到文件夹`)
+        setImportMessage(`已上传 ${result.count} 个文档`)
         setTimeout(() => setImportMessage(''), 3000)
+      } else if (result.noFolder) {
+        setImportMessage('请先选择文件夹')
+        setTimeout(() => setImportMessage(''), 2000)
       }
     } catch (err) {
-      setImportMessage(`保存失败: ${err.message}`)
+      setImportMessage(`上传失败: ${err.message}`)
       setTimeout(() => setImportMessage(''), 5000)
     }
   }
@@ -142,10 +146,28 @@ function App() {
       if (result.success) {
         setImportMessage(`从文件夹恢复了 ${result.mergedCount} 个文档`)
         setTimeout(() => setImportMessage(''), 3000)
+      } else if (result.noFolder) {
+        setImportMessage('请先选择文件夹')
+        setTimeout(() => setImportMessage(''), 2000)
       }
     } catch (err) {
       setImportMessage(`加载失败: ${err.message}`)
       setTimeout(() => setImportMessage(''), 5000)
+    }
+  }
+
+  const handlePickFolder = async () => {
+    try {
+      const result = await pickFolder()
+      if (result.success) {
+        setImportMessage('已选择同步文件夹')
+        setTimeout(() => setImportMessage(''), 2000)
+      }
+    } catch (err) {
+      if (err.message) {
+        setImportMessage(`选择失败: ${err.message}`)
+        setTimeout(() => setImportMessage(''), 5000)
+      }
     }
   }
 
@@ -237,11 +259,14 @@ function App() {
         <div className="sidebar-divider" />
 
         <div className="sidebar-sync">
-          <button className="sync-btn" onClick={handleSaveToFolder} title="保存到指定文件夹">
-            保存
+          <button className="sync-btn" onClick={handlePickFolder} title="选择同步文件夹">
+            文件夹
           </button>
-          <button className="sync-btn" onClick={handleLoadFromFolder} title="从指定文件夹恢复">
-            恢复
+          <button className="sync-btn" onClick={handleSaveToFolder} title="保存到文件夹">
+            上传
+          </button>
+          <button className="sync-btn" onClick={handleLoadFromFolder} title="从文件夹加载">
+            下载
           </button>
           <input
             ref={fileInputRef}
