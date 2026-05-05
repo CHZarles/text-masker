@@ -1,7 +1,18 @@
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useMemo } from 'react'
 
 const STORAGE_KEY = 'text-masker-documents'
 const STATE_KEY = 'text-masker-state'
+
+// Safe localStorage access (SSR safe)
+const getStorageItem = (key, fallback = null) => {
+  try {
+    if (typeof window === 'undefined') return fallback
+    const saved = localStorage.getItem(key)
+    return saved ? JSON.parse(saved) : fallback
+  } catch {
+    return fallback
+  }
+}
 
 function tokenizeText(text) {
   if (!text.trim()) return []
@@ -49,61 +60,33 @@ function isMarkdown(text) {
 }
 
 export function useMasker() {
-  const [documents, setDocuments] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY)
-      return saved ? JSON.parse(saved) : []
-    } catch {
-      return []
-    }
-  })
+  const [documents, setDocuments] = useState(() => getStorageItem(STORAGE_KEY, []))
 
   const [currentDocId, setCurrentDocId] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? JSON.parse(saved).currentDocId ?? null : null
-    } catch {
-      return null
-    }
+    const state = getStorageItem(STATE_KEY, {})
+    return state.currentDocId ?? null
   })
 
   const [tokens, setTokens] = useState([])
   const [maskedIndices, setMaskedIndices] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      const state = saved ? JSON.parse(saved) : {}
-      return new Set(state.maskedIndices ?? [])
-    } catch {
-      return new Set()
-    }
+    const state = getStorageItem(STATE_KEY, {})
+    return new Set(state.maskedIndices ?? [])
   })
   const [revealedIndices, setRevealedIndices] = useState(new Set())
   const [markdownDetected, setMarkdownDetected] = useState(false)
 
   // UI state - restored from localStorage on mount
   const [lineModeEnabled, setLineModeEnabled] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? JSON.parse(saved).lineModeEnabled ?? false : false
-    } catch {
-      return false
-    }
+    const state = getStorageItem(STATE_KEY, {})
+    return state.lineModeEnabled ?? false
   })
   const [selectedLines, setSelectedLines] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? new Set(JSON.parse(saved).selectedLines ?? []) : new Set()
-    } catch {
-      return new Set()
-    }
+    const state = getStorageItem(STATE_KEY, {})
+    return new Set(state.selectedLines ?? [])
   })
   const [showMasked, setShowMasked] = useState(() => {
-    try {
-      const saved = localStorage.getItem(STATE_KEY)
-      return saved ? JSON.parse(saved).showMasked ?? false : false
-    } catch {
-      return false
-    }
+    const state = getStorageItem(STATE_KEY, {})
+    return state.showMasked ?? false
   })
 
   const currentDoc = documents.find(d => d.id === currentDocId)
@@ -334,13 +317,13 @@ export function useMasker() {
     }
   }, [currentDocId])
 
-  // Initialize tokens and masked state when currentDoc is available
+  // Restore tokens when currentDocId changes
   useEffect(() => {
-    if (currentDoc) {
+    if (currentDocId && currentDoc) {
       setTokens(tokenizeText(currentDoc.content))
       setMarkdownDetected(currentDoc.isMarkdown ?? isMarkdown(currentDoc.content))
     }
-  }, [currentDoc])
+  }, [currentDocId])
 
   return {
     documents,
