@@ -855,28 +855,6 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
       <ReactMarkdown
         sourcePos
         components={{
-          // 直接渲染文本，react-markdown会自动处理结构
-          p: ({ children }) => <p className="md-p">{children}</p>,
-          h1: ({ children }) => <h1 className="md-h1">{children}</h1>,
-          h2: ({ children }) => <h2 className="md-h2">{children}</h2>,
-          h3: ({ children }) => <h3 className="md-h3">{children}</h3>,
-          h4: ({ children }) => <h4 className="md-h4">{children}</h4>,
-          h5: ({ children }) => <h5 className="md-h5">{children}</h5>,
-          h6: ({ children }) => <h6 className="md-h6">{children}</h6>,
-          li: ({ children }) => <li className="md-li">{children}</li>,
-          blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
-          code: ({ inline, children }) => inline
-            ? <code className="md-code-inline">{children}</code>
-            : <code className="md-code-block">{children}</code>,
-          pre: ({ children }) => <pre className="md-pre">{children}</pre>,
-          table: ({ children }) => <table className="md-table">{children}</table>,
-          thead: ({ children }) => <thead className="md-thead">{children}</thead>,
-          tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
-          tr: ({ children }) => <tr className="md-tr">{children}</tr>,
-          th: ({ children }) => <th className="md-th">{children}</th>,
-          td: ({ children }) => <td className="md-td">{children}</td>,
-          hr: () => <hr className="md-hr" />,
-          // 文本节点应用掩码
           p: ({ node, children }) => {
             const pos = node?.position?.start?.offset
             const textContent = String(children)
@@ -909,6 +887,9 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
             }
             return <h3 className="md-h3">{renderMaskedText(textContent, pos)}</h3>
           },
+          h4: ({ children }) => <h4 className="md-h4">{children}</h4>,
+          h5: ({ children }) => <h5 className="md-h5">{children}</h5>,
+          h6: ({ children }) => <h6 className="md-h6">{children}</h6>,
           li: ({ node, children }) => {
             const pos = node?.position?.start?.offset
             const textContent = String(children)
