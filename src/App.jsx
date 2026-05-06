@@ -3,26 +3,6 @@ import { useMasker } from './hooks/useMasker'
 import { initJieba } from './utils/jieba'
 import './styles/index.css'
 
-// Check if content is markdown (for dynamic detection)
-function checkMarkdown(content) {
-  const patterns = [
-    /^#{1,6}\s/m,
-    /^\s*[-*+]\s/m,
-    /^\s*\d+\.\s/m,
-    /^\s*>\s/m,
-    /```/,
-    /\*\*[^*]+\*\*/,
-    /__[^_]+__/,
-    /(?<!\*)\*[^*]+\*(?!\*)/,
-    /(?<!_)_[^_]+_(?!_)/,
-    /`[^`]+`/,
-    /\[.+\]\(.+\)/,
-    /^\s*[-*_]{3,}\s*$/m,
-    /\|.+\|/,
-  ]
-  return patterns.some(p => p.test(content))
-}
-
 function App() {
   const [page, setPage] = useState('study')
   const [percentage, setPercentage] = useState(50)
@@ -539,7 +519,6 @@ function App() {
                     }}>
                       <h3 className="doc-name">
                         {doc.name}
-                        {(doc.isMarkdown || checkMarkdown(doc.content)) && <span className="md-badge">MD</span>}
                       </h3>
                       <p className="doc-preview">{doc.content.slice(0, 50)}...</p>
                       <span className="doc-date">
@@ -667,176 +646,8 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
   return elements
 }
 
-// Simple markdown renderer with mask support
-// Uses the original renderText logic but wraps it in markdown-styled containers
-
-function renderMarkdownWithMask(text, tokens, maskedIndices, revealedIndices, onReveal) {
-  const lines = text.split('\n')
-  const elements = []
-
-  // Process line by line, detecting markdown syntax
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const lineElements = []
-    let content = line
-    let className = ''
-    let isBlockElement = false
-
-    // Check for various markdown patterns
-    // Headings
-    const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
-    if (headingMatch) {
-      const level = headingMatch[1].length
-      content = headingMatch[2]
-      className = `md-heading md-h${level}`
-      isBlockElement = true
-    }
-    // Blockquote
-    else if (line.startsWith('> ')) {
-      content = line.slice(2)
-      className = 'md-blockquote'
-      isBlockElement = true
-    }
-    // Horizontal rule
-    else if (/^[-*_]{3,}\s*$/.test(line)) {
-      elements.push(<hr key={`hr-${i}`} className="md-hr" />)
-      continue
-    }
-    // Unordered list
-    else if (/^[-*+]\s/.test(line)) {
-      content = line.replace(/^[-*+]\s+/, '')
-      className = 'md-list-item'
-      lineElements.push(<span key={`bullet-${i}`}>{line.match(/^[-*+]/)[0]} </span>)
-    }
-    // Ordered list
-    else if (/^\d+\.\s/.test(line)) {
-      content = line.replace(/^\d+\.\s+/, '')
-      className = 'md-list-item'
-      const num = line.match(/^(\d+)\./)[1]
-      lineElements.push(<span key={`num-${i}`}>{num}. </span>)
-    }
-    // Code block markers
-    else if (line.startsWith('```')) {
-      elements.push(
-        <pre key={`code-${i}`} className="md-code-block">
-          <code>{line}</code>
-        </pre>
-      )
-      continue
-    }
-    // Table detection
-    else if (line.includes('|') && line.trim().startsWith('|')) {
-      // Simple table rendering - skip complex parsing for now
-      const cells = line.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
-      const isHeader = i === 0 || (i > 0 && !lines[i-1].includes('|'))
-      const isSeparator = /^\|[\s\-:|]+\|$/.test(line)
-
-      if (isSeparator) {
-        continue
-      }
-
-      const rowClass = isHeader ? 'md-table-header' : ''
-      elements.push(
-        <div key={`table-row-${i}`} className={`md-table-row ${rowClass}`}>
-          {cells.map((cell, ci) => (
-            <span key={`cell-${ci}`} className="md-table-cell">
-              {cell.trim()}
-            </span>
-          ))}
-        </div>
-      )
-      continue
-    }
-    // Empty line
-    else if (line.trim() === '') {
-      elements.push(<div key={`empty-${i}`} className="md-empty-line" />)
-      continue
-    }
-    // Regular paragraph
-    else {
-      className = 'md-paragraph'
-      isBlockElement = true
-    }
-
-    // Find tokens for this line and render with mask
-    let lineStart = 0
-    for (let j = 0; j < i; j++) {
-      lineStart += lines[j].length + 1
-    }
-    const lineEnd = lineStart + line.length
-
-    // Render masked tokens for this line
-    const maskedContent = []
-    let lastPos = 0
-
-    tokens.forEach((token, tokenIdx) => {
-      if (token.start >= lineStart && token.end <= lineEnd) {
-        const relStart = token.start - lineStart
-        const relEnd = token.end - lineStart
-
-        // Add non-token text
-        if (relStart > lastPos) {
-          lineElements.push(content.slice(lastPos, relStart))
-        }
-
-        const isMasked = maskedIndices.has(tokenIdx)
-        const isRevealed = revealedIndices.has(tokenIdx)
-
-        if (isMasked && !isRevealed) {
-          lineElements.push(
-            <span
-              key={`mask-${tokenIdx}`}
-              className="masked-text"
-              onClick={() => onReveal(tokenIdx)}
-            >
-              {token.text}
-            </span>
-          )
-        } else {
-          lineElements.push(token.text)
-        }
-
-        lastPos = relEnd
-      }
-    })
-
-    // Add remaining text
-    if (lastPos < content.length) {
-      lineElements.push(content.slice(lastPos))
-    }
-
-    // Wrap in appropriate element
-    if (isBlockElement) {
-      elements.push(
-        <div key={`block-${i}`} className={className}>
-          {lineElements}
-        </div>
-      )
-    } else if (className === 'md-list-item') {
-      elements.push(
-        <div key={`list-${i}`} className={className}>
-          {lineElements}
-        </div>
-      )
-    } else {
-      elements.push(
-        <div key={`text-${i}`} className={className || 'md-paragraph'}>
-          {lineElements.length > 0 ? lineElements : line}
-        </div>
-      )
-    }
-  }
-
-  return elements
-}
-
 // 普通文本渲染（带掩码）
 function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
-  // Check if content is markdown
-  if (checkMarkdown(text)) {
-    return renderMarkdownWithMask(text, tokens, maskedIndices, revealedIndices, onReveal)
-  }
-
   const elements = []
   let lastEnd = 0
 
