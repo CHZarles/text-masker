@@ -4,9 +4,8 @@ let jiebaReady = false
 let jiebaInitPromise = null
 
 // ASCII printable characters (33-126), excluding alphanumeric
-// This includes: ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
-// Plus common Chinese punctuation
-const PUNCT_REGEX = /[\u0021-\u007E\u3002\uFF0C\uFF01\uFF1F\uFF1B\uFF1A]/
+// Plus all Chinese/Asian punctuation and brackets
+const PUNCT_REGEX = /[\u0021-\u007E\u3000-\u303F\uFF00-\uFFEF]/
 
 export function isPunctuation(text) {
   // Must be punctuation/symbol and not contain letters, digits, or Chinese characters
