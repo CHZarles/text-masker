@@ -815,14 +815,14 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
   })
 
   // 渲染带掩码的文本
-  const renderMaskedText = (textContent) => {
+  const renderMaskedText = (textContent, startPos = 0) => {
     if (!textContent || typeof textContent !== 'string') return textContent
 
     const elements = []
     let i = 0
 
     while (i < textContent.length) {
-      const idx = tokenIndexMap.get(i)
+      const idx = tokenIndexMap.get(startPos + i)
       if (idx !== undefined) {
         const token = tokens[idx]
         const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
@@ -839,7 +839,7 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
         i += token.text.length
       } else {
         let j = i + 1
-        while (j < textContent.length && tokenIndexMap.get(j) === undefined) {
+        while (j < textContent.length && tokenIndexMap.get(startPos + j) === undefined) {
           j++
         }
         elements.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
@@ -853,6 +853,7 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
   return (
     <div className="md-content">
       <ReactMarkdown
+        sourcePos
         components={{
           // 直接渲染文本，react-markdown会自动处理结构
           p: ({ children }) => <p className="md-p">{children}</p>,
@@ -876,46 +877,72 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
           td: ({ children }) => <td className="md-td">{children}</td>,
           hr: () => <hr className="md-hr" />,
           // 文本节点应用掩码
-          text: ({ node, children }) => {
-            // 获取文本在原文中的位置
+          p: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
             const textContent = String(children)
-            if (!textContent || textContent.length === 0) return children
-
-            // 找到这个文本节点在原文中的起始位置
-            const sourceStart = node?.position?.start?.offset ?? 0
-            const elements = []
-            let i = 0
-
-            while (i < textContent.length) {
-              const globalPos = sourceStart + i
-              const idx = tokenIndexMap.get(globalPos)
-
-              if (idx !== undefined) {
-                const token = tokens[idx]
-                const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
-
-                if (isMasked) {
-                  elements.push(
-                    <span key={`m-${idx}`} className="masked-text" onClick={() => onReveal(idx)}>
-                      {token.text}
-                    </span>
-                  )
-                } else {
-                  elements.push(<span key={`t-${idx}`}>{token.text}</span>)
-                }
-                i += token.text.length
-              } else {
-                let j = i + 1
-                while (j < textContent.length && tokenIndexMap.get(sourceStart + j) === undefined) {
-                  j++
-                }
-                elements.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
-                i = j
-              }
+            if (pos === undefined || !textContent) {
+              return <p className="md-p">{children}</p>
             }
-
-            return elements.length > 0 ? elements : children
-          }
+            return <p className="md-p">{renderMaskedText(textContent, pos)}</p>
+          },
+          h1: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <h1 className="md-h1">{children}</h1>
+            }
+            return <h1 className="md-h1">{renderMaskedText(textContent, pos)}</h1>
+          },
+          h2: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <h2 className="md-h2">{children}</h2>
+            }
+            return <h2 className="md-h2">{renderMaskedText(textContent, pos)}</h2>
+          },
+          h3: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <h3 className="md-h3">{children}</h3>
+            }
+            return <h3 className="md-h3">{renderMaskedText(textContent, pos)}</h3>
+          },
+          li: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <li className="md-li">{children}</li>
+            }
+            return <li className="md-li">{renderMaskedText(textContent, pos)}</li>
+          },
+          td: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <td className="md-td">{children}</td>
+            }
+            return <td className="md-td">{renderMaskedText(textContent, pos)}</td>
+          },
+          th: ({ node, children }) => {
+            const pos = node?.position?.start?.offset
+            const textContent = String(children)
+            if (pos === undefined || !textContent) {
+              return <th className="md-th">{children}</th>
+            }
+            return <th className="md-th">{renderMaskedText(textContent, pos)}</th>
+          },
+          blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
+          code: ({ inline, children }) => inline
+            ? <code className="md-code-inline">{children}</code>
+            : <code className="md-code-block">{children}</code>,
+          pre: ({ children }) => <pre className="md-pre">{children}</pre>,
+          table: ({ children }) => <table className="md-table">{children}</table>,
+          thead: ({ children }) => <thead className="md-thead">{children}</thead>,
+          tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
+          tr: ({ children }) => <tr className="md-tr">{children}</tr>,
+          hr: () => <hr className="md-hr" />,
         }}
       >
         {text}
