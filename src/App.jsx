@@ -667,336 +667,174 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
   return elements
 }
 
-// Markdown parser - parses markdown into blocks for mask rendering
-function parseMarkdown(content) {
-  const lines = content.split('\n')
-  const blocks = []
-  let currentBlock = null
-  let currentListItems = []
-  let currentTable = null
-  let inCodeBlock = false
-  let codeBlockContent = []
-  let codeBlockLang = ''
+// Simple markdown renderer with mask support
+// Uses the original renderText logic but wraps it in markdown-styled containers
 
-  const flushParagraph = () => {
-    if (currentBlock) {
-      blocks.push(currentBlock)
-      currentBlock = null
-    }
-  }
+function renderMarkdownWithMask(text, tokens, maskedIndices, revealedIndices, onReveal) {
+  const lines = text.split('\n')
+  const elements = []
 
-  const flushList = () => {
-    if (currentListItems.length > 0) {
-      blocks.push({ type: 'list', items: [...currentListItems] })
-      currentListItems = []
-    }
-  }
-
-  const flushTable = () => {
-    if (currentTable) {
-      blocks.push(currentTable)
-      currentTable = null
-    }
-  }
-
+  // Process line by line, detecting markdown syntax
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i]
+    const lineElements = []
+    let content = line
+    let className = ''
+    let isBlockElement = false
 
-    // Code block handling
-    if (line.startsWith('```')) {
-      if (inCodeBlock) {
-        blocks.push({ type: 'code', language: codeBlockLang, content: codeBlockContent.join('\n') })
-        inCodeBlock = false
-        codeBlockContent = []
-        codeBlockLang = ''
-      } else {
-        flushParagraph()
-        flushList()
-        flushTable()
-        inCodeBlock = true
-        codeBlockLang = line.slice(3).trim()
-      }
-      continue
-    }
-
-    if (inCodeBlock) {
-      codeBlockContent.push(line)
-      continue
-    }
-
+    // Check for various markdown patterns
     // Headings
     const headingMatch = line.match(/^(#{1,6})\s+(.+)$/)
     if (headingMatch) {
-      flushParagraph()
-      flushList()
-      flushTable()
-      blocks.push({
-        type: 'heading',
-        level: headingMatch[1].length,
-        text: headingMatch[2]
-      })
-      continue
+      const level = headingMatch[1].length
+      content = headingMatch[2]
+      className = `md-heading md-h${level}`
+      isBlockElement = true
     }
-
     // Blockquote
-    if (line.startsWith('> ')) {
-      flushParagraph()
-      flushList()
-      flushTable()
-      blocks.push({ type: 'blockquote', text: line.slice(2) })
-      continue
+    else if (line.startsWith('> ')) {
+      content = line.slice(2)
+      className = 'md-blockquote'
+      isBlockElement = true
     }
-
     // Horizontal rule
-    if (/^[-*_]{3,}\s*$/.test(line)) {
-      flushParagraph()
-      flushList()
-      flushTable()
-      blocks.push({ type: 'hr' })
+    else if (/^[-*_]{3,}\s*$/.test(line)) {
+      elements.push(<hr key={`hr-${i}`} className="md-hr" />)
       continue
     }
+    // Unordered list
+    else if (/^[-*+]\s/.test(line)) {
+      content = line.replace(/^[-*+]\s+/, '')
+      className = 'md-list-item'
+      lineElements.push(<span key={`bullet-${i}`}>{line.match(/^[-*+]/)[0]} </span>)
+    }
+    // Ordered list
+    else if (/^\d+\.\s/.test(line)) {
+      content = line.replace(/^\d+\.\s+/, '')
+      className = 'md-list-item'
+      const num = line.match(/^(\d+)\./)[1]
+      lineElements.push(<span key={`num-${i}`}>{num}. </span>)
+    }
+    // Code block markers
+    else if (line.startsWith('```')) {
+      elements.push(
+        <pre key={`code-${i}`} className="md-code-block">
+          <code>{line}</code>
+        </pre>
+      )
+      continue
+    }
+    // Table detection
+    else if (line.includes('|') && line.trim().startsWith('|')) {
+      // Simple table rendering - skip complex parsing for now
+      const cells = line.split('|').filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
+      const isHeader = i === 0 || (i > 0 && !lines[i-1].includes('|'))
+      const isSeparator = /^\|[\s\-:|]+\|$/.test(line)
 
-    // Table
-    if (line.includes('|') && line.trim().startsWith('|')) {
-      flushParagraph()
-      flushList()
-      // Check if this is a separator row
-      if (/^\|[\s\-:|]+\|/.test(line)) {
-        if (currentTable) {
-          currentTable.hasSeparator = true
-        }
+      if (isSeparator) {
         continue
       }
 
-      if (!currentTable) {
-        currentTable = { type: 'table', headers: [], rows: [], hasSeparator: false }
-      }
-
-      const cells = line.split('|').filter((_, i, arr) => i > 0 && i < arr.length - 1).map(c => c.trim())
-
-      if (!currentTable.hasSeparator && currentTable.headers.length === 0) {
-        currentTable.headers = cells
-      } else if (currentTable.hasSeparator) {
-        currentTable.rows.push(cells)
-      }
+      const rowClass = isHeader ? 'md-table-header' : ''
+      elements.push(
+        <div key={`table-row-${i}`} className={`md-table-row ${rowClass}`}>
+          {cells.map((cell, ci) => (
+            <span key={`cell-${ci}`} className="md-table-cell">
+              {cell.trim()}
+            </span>
+          ))}
+        </div>
+      )
       continue
+    }
+    // Empty line
+    else if (line.trim() === '') {
+      elements.push(<div key={`empty-${i}`} className="md-empty-line" />)
+      continue
+    }
+    // Regular paragraph
+    else {
+      className = 'md-paragraph'
+      isBlockElement = true
+    }
+
+    // Find tokens for this line and render with mask
+    let lineStart = 0
+    for (let j = 0; j < i; j++) {
+      lineStart += lines[j].length + 1
+    }
+    const lineEnd = lineStart + line.length
+
+    // Render masked tokens for this line
+    const maskedContent = []
+    let lastPos = 0
+
+    tokens.forEach((token, tokenIdx) => {
+      if (token.start >= lineStart && token.end <= lineEnd) {
+        const relStart = token.start - lineStart
+        const relEnd = token.end - lineStart
+
+        // Add non-token text
+        if (relStart > lastPos) {
+          lineElements.push(content.slice(lastPos, relStart))
+        }
+
+        const isMasked = maskedIndices.has(tokenIdx)
+        const isRevealed = revealedIndices.has(tokenIdx)
+
+        if (isMasked && !isRevealed) {
+          lineElements.push(
+            <span
+              key={`mask-${tokenIdx}`}
+              className="masked-text"
+              onClick={() => onReveal(tokenIdx)}
+            >
+              {token.text}
+            </span>
+          )
+        } else {
+          lineElements.push(token.text)
+        }
+
+        lastPos = relEnd
+      }
+    })
+
+    // Add remaining text
+    if (lastPos < content.length) {
+      lineElements.push(content.slice(lastPos))
+    }
+
+    // Wrap in appropriate element
+    if (isBlockElement) {
+      elements.push(
+        <div key={`block-${i}`} className={className}>
+          {lineElements}
+        </div>
+      )
+    } else if (className === 'md-list-item') {
+      elements.push(
+        <div key={`list-${i}`} className={className}>
+          {lineElements}
+        </div>
+      )
     } else {
-      flushTable()
-    }
-
-    // List items
-    const unorderedMatch = line.match(/^(\s*)[-*+]\s+(.+)$/)
-    const orderedMatch = line.match(/^(\s*)\d+\.\s+(.+)$/)
-
-    if (unorderedMatch) {
-      flushParagraph()
-      const indent = unorderedMatch[1].length
-      const text = unorderedMatch[2]
-      currentListItems.push({ indent, text, ordered: false })
-      continue
-    }
-
-    if (orderedMatch) {
-      flushParagraph()
-      const indent = orderedMatch[1].length
-      const text = orderedMatch[2]
-      currentListItems.push({ indent, text, ordered: true })
-      continue
-    }
-
-    // Empty line - end paragraph/list
-    if (line.trim() === '') {
-      flushParagraph()
-      flushList()
-      continue
-    }
-
-    // Paragraph content
-    flushList()
-    if (currentBlock) {
-      currentBlock.text += '\n' + line
-    } else {
-      currentBlock = { type: 'paragraph', text: line }
+      elements.push(
+        <div key={`text-${i}`} className={className || 'md-paragraph'}>
+          {lineElements.length > 0 ? lineElements : line}
+        </div>
+      )
     }
   }
 
-  // Flush remaining
-  flushParagraph()
-  flushList()
-  flushTable()
-
-  return blocks
-}
-
-// Map text content to token indices for masking
-function getTokenIndicesForText(text, fullText, tokens) {
-  const startIdx = fullText.indexOf(text)
-  if (startIdx === -1) return new Set()
-
-  const endIdx = startIdx + text.length
-  const indices = new Set()
-
-  tokens.forEach((token, idx) => {
-    if (token.start >= startIdx && token.end <= endIdx) {
-      indices.add(idx)
-    }
-  })
-
-  return indices
-}
-
-// Render masked inline text (handles bold, italic, code, links)
-function renderInlineText(text, maskedIndices, revealedIndices, allTokens, fullText, onReveal) {
-  // Simple inline parsing
-  const parts = []
-  let remaining = text
-  let lastIdx = 0
-
-  // Patterns for inline formatting
-  const patterns = [
-    { regex: /\*\*([^*]+)\*\*/g, type: 'bold' },
-    { regex: /__([^_]+)__/g, type: 'bold' },
-    { regex: /(?<!\*)\*([^*]+)\*(?!\*)/g, type: 'italic' },
-    { regex: /(?<!_)_([^_]+)_(?!_)/g, type: 'italic' },
-    { regex: /`([^`]+)`/g, type: 'code' },
-    { regex: /\[([^\]]+)\]\([^)]+\)/g, type: 'link' },
-  ]
-
-  // For simplicity, just render the text with mask
-  // Find tokens that fall within this text span
-  const startIdx = fullText.indexOf(text)
-  if (startIdx === -1) {
-    return <span key={Math.random()}>{text}</span>
-  }
-
-  const endIdx = startIdx + text.length
-  const elements = []
-  let pos = 0
-  const localText = text
-
-  allTokens.forEach((token, idx) => {
-    // Find token position in original text
-    const tokenStartInFull = fullText.indexOf(token.text, startIdx)
-    if (tokenStartInFull >= startIdx && tokenStartInFull < endIdx) {
-      // This token is within our text
-      const relStart = tokenStartInFull - startIdx
-
-      if (relStart > pos) {
-        elements.push(localText.slice(pos, relStart))
-      }
-
-      const isMasked = maskedIndices.has(idx)
-      const isRevealed = revealedIndices.has(idx)
-
-      if (isMasked && !isRevealed) {
-        elements.push(
-          <span key={idx} className="masked-text" onClick={() => onReveal(idx)}>
-            {token.text}
-          </span>
-        )
-      } else {
-        elements.push(token.text)
-      }
-
-      pos = relStart + token.text.length
-    }
-  })
-
-  if (pos < localText.length) {
-    elements.push(localText.slice(pos))
-  }
-
-  return <span key={Math.random()}>{elements.length > 0 ? elements : text}</span>
-}
-
-// Render markdown blocks with mask support
-function renderMarkdown(text, tokens, maskedIndices, revealedIndices, onReveal) {
-  const blocks = parseMarkdown(text)
-
-  return blocks.map((block, blockIdx) => {
-    switch (block.type) {
-      case 'heading':
-        return (
-          <div key={blockIdx} className={`md-heading md-h${block.level}`}>
-            {renderInlineText(block.text, maskedIndices, revealedIndices, tokens, text, onReveal)}
-          </div>
-        )
-
-      case 'paragraph':
-        return (
-          <div key={blockIdx} className="md-paragraph">
-            {renderInlineText(block.text, maskedIndices, revealedIndices, tokens, text, onReveal)}
-          </div>
-        )
-
-      case 'blockquote':
-        return (
-          <div key={blockIdx} className="md-blockquote">
-            {renderInlineText(block.text, maskedIndices, revealedIndices, tokens, text, onReveal)}
-          </div>
-        )
-
-      case 'hr':
-        return <hr key={blockIdx} className="md-hr" />
-
-      case 'list':
-        const ListTag = block.items[0]?.ordered ? 'ol' : 'ul'
-        return (
-          <ListTag key={blockIdx} className="md-list">
-            {block.items.map((item, i) => (
-              <li key={i} className="md-list-item" style={{ marginLeft: item.indent * 16 }}>
-                {renderInlineText(item.text, maskedIndices, revealedIndices, tokens, text, onReveal)}
-              </li>
-            ))}
-          </ListTag>
-        )
-
-      case 'table':
-        return (
-          <div key={blockIdx} className="md-table-wrapper">
-            <table className="md-table">
-              <thead>
-                <tr>
-                  {block.headers.map((h, i) => (
-                    <th key={i}>{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {block.rows.map((row, ri) => (
-                  <tr key={ri}>
-                    {row.map((cell, ci) => (
-                      <td key={ci}>
-                        {renderInlineText(cell, maskedIndices, revealedIndices, tokens, text, onReveal)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )
-
-      case 'code':
-        return (
-          <pre key={blockIdx} className="md-code-block">
-            <code className={block.language ? `language-${block.language}` : ''}>
-              {block.content}
-            </code>
-          </pre>
-        )
-
-      default:
-        return null
-    }
-  })
+  return elements
 }
 
 // 普通文本渲染（带掩码）
 function renderText(text, tokens, maskedIndices, revealedIndices, onReveal) {
   // Check if content is markdown
   if (checkMarkdown(text)) {
-    return renderMarkdown(text, tokens, maskedIndices, revealedIndices, onReveal)
+    return renderMarkdownWithMask(text, tokens, maskedIndices, revealedIndices, onReveal)
   }
 
   const elements = []
