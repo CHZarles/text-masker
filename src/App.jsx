@@ -1,8 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMasker } from './hooks/useMasker'
 import { initJieba } from './utils/jieba'
-import ReactMarkdown from 'react-markdown'
-import remarkGfm from 'remark-gfm'
 import './styles/index.css'
 
 // Check if content is markdown (for dynamic detection)
@@ -429,13 +427,7 @@ function App() {
 
                 <div className="text-display">
                   {(currentDoc?.isMarkdown || checkMarkdown(currentDoc?.content || '')) && !lineModeEnabled ? (
-                    <MarkdownRendererWithMask
-                      text={originalText}
-                      tokens={tokens}
-                      maskedIndices={maskedIndices}
-                      revealedIndices={revealedIndices}
-                      onReveal={revealToken}
-                    />
+                    <MarkdownRenderer text={originalText} />
                   ) : !lineModeEnabled ? (
                     renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
                   ) : showMasked ? (
@@ -678,6 +670,7 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
 }
 
 // 简单Markdown渲染器（不应用掩码）
+// 简单Markdown渲染器（支持基本元素：标题、列表、表格）
 function MarkdownRenderer({ text }) {
   const lines = text.split('\n')
   const elements = []
@@ -803,135 +796,6 @@ function MarkdownRenderer({ text }) {
   }
 
   return <div className="md-content">{elements}</div>
-}
-
-// Markdown渲染器（带掩码）- 使用react-markdown
-function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  // 构建token索引映射：position -> tokenIndex
-  const tokenIndexMap = new Map()
-  tokens.forEach((token, idx) => {
-    for (let i = token.start; i < token.end; i++) {
-      tokenIndexMap.set(i, idx)
-    }
-  })
-
-  // 渲染带掩码的文本
-  const renderMaskedText = (textContent, startPos = 0) => {
-    if (!textContent || typeof textContent !== 'string') return textContent
-
-    const elements = []
-    let i = 0
-
-    while (i < textContent.length) {
-      const idx = tokenIndexMap.get(startPos + i)
-      if (idx !== undefined) {
-        const token = tokens[idx]
-        const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
-
-        if (isMasked) {
-          elements.push(
-            <span key={`m-${idx}`} className="masked-text" onClick={() => onReveal(idx)}>
-              {token.text}
-            </span>
-          )
-        } else {
-          elements.push(<span key={`t-${idx}`}>{token.text}</span>)
-        }
-        i += token.text.length
-      } else {
-        let j = i + 1
-        while (j < textContent.length && tokenIndexMap.get(startPos + j) === undefined) {
-          j++
-        }
-        elements.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
-        i = j
-      }
-    }
-
-    return elements.length > 0 ? elements : textContent
-  }
-
-  return (
-    <div className="md-content">
-      <ReactMarkdown
-        sourcePos
-        remarkPlugins={[remarkGfm]}
-        components={{
-          p: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <p className="md-p">{children}</p>
-            }
-            return <p className="md-p">{renderMaskedText(textContent, pos)}</p>
-          },
-          h1: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <h1 className="md-h1">{children}</h1>
-            }
-            return <h1 className="md-h1">{renderMaskedText(textContent, pos)}</h1>
-          },
-          h2: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <h2 className="md-h2">{children}</h2>
-            }
-            return <h2 className="md-h2">{renderMaskedText(textContent, pos)}</h2>
-          },
-          h3: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <h3 className="md-h3">{children}</h3>
-            }
-            return <h3 className="md-h3">{renderMaskedText(textContent, pos)}</h3>
-          },
-          h4: ({ children }) => <h4 className="md-h4">{children}</h4>,
-          h5: ({ children }) => <h5 className="md-h5">{children}</h5>,
-          h6: ({ children }) => <h6 className="md-h6">{children}</h6>,
-          li: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <li className="md-li">{children}</li>
-            }
-            return <li className="md-li">{renderMaskedText(textContent, pos)}</li>
-          },
-          td: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <td className="md-td">{children}</td>
-            }
-            return <td className="md-td">{renderMaskedText(textContent, pos)}</td>
-          },
-          th: ({ node, children }) => {
-            const pos = node?.position?.start?.offset
-            const textContent = String(children)
-            if (pos === undefined || !textContent) {
-              return <th className="md-th">{children}</th>
-            }
-            return <th className="md-th">{renderMaskedText(textContent, pos)}</th>
-          },
-          blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
-          code: ({ inline, children }) => inline
-            ? <code className="md-code-inline">{children}</code>
-            : <code className="md-code-block">{children}</code>,
-          pre: ({ children }) => <pre className="md-pre">{children}</pre>,
-          table: ({ children }) => <table className="md-table">{children}</table>,
-          thead: ({ children }) => <thead className="md-thead">{children}</thead>,
-          tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
-          tr: ({ children }) => <tr className="md-tr">{children}</tr>,
-          hr: () => <hr className="md-hr" />,
-        }}
-      >
-        {text}
-      </ReactMarkdown>
-    </div>
-  )
 }
 
 // 普通文本渲染（带掩码）
