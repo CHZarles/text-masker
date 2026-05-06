@@ -658,59 +658,82 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
 
 // Markdown渲染器（带掩码）
 function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  // 构建token索引映射：position -> tokenIndex
-  const tokenMap = new Map()
-  tokens.forEach((token, idx) => {
-    for (let i = token.start; i < token.end; i++) {
-      tokenMap.set(i, idx)
-    }
-  })
-
-  // 渲染带掩码的文本片段
-  const renderMaskedText = (textContent, startOffset = 0) => {
-    if (!textContent) return null
-    const elements = []
-    let i = 0
-
-    while (i < textContent.length) {
-      const tokenIdx = tokenMap.get(startOffset + i)
-
-      if (tokenIdx !== undefined) {
-        const token = tokens[tokenIdx]
-        const isMasked = maskedIndices.has(tokenIdx)
-        const isRevealed = revealedIndices.has(tokenIdx)
-
-        if (isMasked && !isRevealed) {
-          elements.push(
-            <span
-              key={`mask-${tokenIdx}-${i}`}
-              className="masked-text"
-              onClick={() => onReveal(tokenIdx)}
-            >
-              {token.text}
-            </span>
-          )
-          i += token.text.length
-        } else {
-          elements.push(
-            <span key={`text-${tokenIdx}-${i}`}>{token.text}</span>
-          )
-          i += token.text.length
+  // 根据文本内容查找token（用于匹配被markdown解析后的文本）
+  const findTokenForText = (searchText, startPos = 0) => {
+    // 在tokens中找到与searchText匹配的token
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i]
+      if (token.start >= startPos) {
+        const tokenText = text.slice(token.start, token.end)
+        if (tokenText.includes(searchText) || searchText.includes(tokenText)) {
+          return { tokenIdx: i, token, localStart: token.start - startPos }
         }
-      } else {
-        // 非token字符（如markdown符号）
-        let j = i
-        while (j < textContent.length && tokenMap.get(startOffset + j) === undefined) {
-          j++
-        }
-        elements.push(
-          <span key={`raw-${i}`}>{textContent.slice(i, j)}</span>
-        )
-        i = j
       }
     }
+    return null
+  }
 
-    return elements
+  // 渲染带掩码的文本
+  const renderMaskedText = (textContent) => {
+    if (!textContent) return null
+    if (typeof textContent !== 'string') {
+      if (Array.isArray(textContent)) {
+        return textContent.map((child, i) => {
+          if (typeof child === 'string') return renderMaskedText(child)
+          return child
+        })
+      }
+      return textContent
+    }
+
+    const elements = []
+    // 用token遍历，找到所有需要渲染的部分
+    let lastEnd = 0
+
+    tokens.forEach((token, tokenIdx) => {
+      const tokenText = token.text
+      const tokenStartInContent = textContent.indexOf(tokenText, lastEnd)
+
+      if (tokenStartInContent === -1) return
+
+      // 中间的非token部分
+      if (tokenStartInContent > lastEnd) {
+        elements.push(
+          <span key={`raw-${lastEnd}`}>{textContent.slice(lastEnd, tokenStartInContent)}</span>
+        )
+      }
+
+      // 这个token
+      const isMasked = maskedIndices.has(tokenIdx)
+      const isRevealed = revealedIndices.has(tokenIdx)
+
+      if (isMasked && !isRevealed) {
+        elements.push(
+          <span
+            key={`mask-${tokenIdx}`}
+            className="masked-text"
+            onClick={() => onReveal(tokenIdx)}
+          >
+            {tokenText}
+          </span>
+        )
+      } else {
+        elements.push(
+          <span key={`text-${tokenIdx}`}>{tokenText}</span>
+        )
+      }
+
+      lastEnd = tokenStartInContent + tokenText.length
+    })
+
+    // 剩余部分
+    if (lastEnd < textContent.length) {
+      elements.push(
+        <span key={`raw-end`}>{textContent.slice(lastEnd)}</span>
+      )
+    }
+
+    return elements.length > 0 ? elements : textContent
   }
 
   return (
@@ -723,9 +746,9 @@ function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReve
         h5: ({ children }) => <h5 className="md-h5">{renderMaskedText(String(children))}</h5>,
         h6: ({ children }) => <h6 className="md-h6">{renderMaskedText(String(children))}</h6>,
         p: ({ children }) => <p className="md-p">{renderMaskedText(String(children))}</p>,
-        li: ({ children }) => <li className="md-li">{Array.isArray(children) ? children.map((c, i) => <span key={i}>{c}</span>) : renderMaskedText(String(children))}</li>,
+        li: ({ children }) => <li className="md-li">{renderMaskedText(String(children))}</li>,
         blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
-        code: ({ inline, className, children }) => {
+        code: ({ inline, children }) => {
           if (inline) {
             return <code className="md-code-inline">{children}</code>
           }
@@ -733,8 +756,8 @@ function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReve
         },
         pre: ({ children }) => <pre className="md-pre">{children}</pre>,
         a: ({ href, children }) => <a href={href} className="md-link" target="_blank" rel="noopener noreferrer">{children}</a>,
-        strong: ({ children }) => <strong>{children}</strong>,
-        em: ({ children }) => <em>{children}</em>,
+        strong: ({ children }) => <strong>{renderMaskedText(String(children))}</strong>,
+        em: ({ children }) => <em>{renderMaskedText(String(children))}</em>,
         table: ({ children }) => <table className="md-table">{children}</table>,
         thead: ({ children }) => <thead className="md-thead">{children}</thead>,
         tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
@@ -742,6 +765,8 @@ function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReve
         th: ({ children }) => <th className="md-th">{children}</th>,
         td: ({ children }) => <td className="md-td">{children}</td>,
         hr: () => <hr className="md-hr" />,
+        // 直接传递文本不过滤
+        text: ({ children }) => children,
       }}
     >
       {text}
