@@ -296,7 +296,7 @@ function App() {
             onClick={handleMask}
             disabled={!originalText.trim() || (lineModeEnabled && selectedLines.size === 0)}
           >
-            {showMasked ? '重新开始' : (lineModeEnabled ? '开始背诵' : '开始背诵')}
+            {showMasked ? '重置' : (lineModeEnabled ? '开始' : '练习')}
           </button>
         </div>
       </aside>
