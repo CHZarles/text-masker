@@ -676,38 +676,28 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
   return elements
 }
 
+// 从React节点提取纯文本
+function extractText(node) {
+  if (typeof node === 'string') return node
+  if (typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(extractText).join('')
+  if (node?.props) return extractText(node.props.children)
+  return ''
+}
+
 // Markdown渲染器（带掩码）
 function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  // 根据文本内容查找token（用于匹配被markdown解析后的文本）
-  const findTokenForText = (searchText, startPos = 0) => {
-    // 在tokens中找到与searchText匹配的token
-    for (let i = 0; i < tokens.length; i++) {
-      const token = tokens[i]
-      if (token.start >= startPos) {
-        const tokenText = text.slice(token.start, token.end)
-        if (tokenText.includes(searchText) || searchText.includes(tokenText)) {
-          return { tokenIdx: i, token, localStart: token.start - startPos }
-        }
-      }
-    }
-    return null
-  }
-
   // 渲染带掩码的文本
   const renderMaskedText = (textContent) => {
     if (!textContent) return null
     if (typeof textContent !== 'string') {
-      if (Array.isArray(textContent)) {
-        return textContent.map((child, i) => {
-          if (typeof child === 'string') return renderMaskedText(child)
-          return child
-        })
-      }
-      return textContent
+      // 如果不是字符串，提取文本后处理
+      const plainText = extractText(textContent)
+      if (!plainText) return textContent
+      textContent = plainText
     }
 
     const elements = []
-    // 用token遍历，找到所有需要渲染的部分
     let lastEnd = 0
 
     tokens.forEach((token, tokenIdx) => {
@@ -756,17 +746,24 @@ function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReve
     return elements.length > 0 ? elements : textContent
   }
 
+  // 处理带样式的文本节点
+  const processStyledText = (children) => {
+    if (!children) return null
+    const text = extractText(children)
+    return renderMaskedText(text)
+  }
+
   return (
     <ReactMarkdown
       components={{
-        h1: ({ children }) => <h1 className="md-h1">{renderMaskedText(String(children))}</h1>,
-        h2: ({ children }) => <h2 className="md-h2">{renderMaskedText(String(children))}</h2>,
-        h3: ({ children }) => <h3 className="md-h3">{renderMaskedText(String(children))}</h3>,
-        h4: ({ children }) => <h4 className="md-h4">{renderMaskedText(String(children))}</h4>,
-        h5: ({ children }) => <h5 className="md-h5">{renderMaskedText(String(children))}</h5>,
-        h6: ({ children }) => <h6 className="md-h6">{renderMaskedText(String(children))}</h6>,
-        p: ({ children }) => <p className="md-p">{renderMaskedText(String(children))}</p>,
-        li: ({ children }) => <li className="md-li">{renderMaskedText(String(children))}</li>,
+        h1: ({ children }) => <h1 className="md-h1">{processStyledText(children)}</h1>,
+        h2: ({ children }) => <h2 className="md-h2">{processStyledText(children)}</h2>,
+        h3: ({ children }) => <h3 className="md-h3">{processStyledText(children)}</h3>,
+        h4: ({ children }) => <h4 className="md-h4">{processStyledText(children)}</h4>,
+        h5: ({ children }) => <h5 className="md-h5">{processStyledText(children)}</h5>,
+        h6: ({ children }) => <h6 className="md-h6">{processStyledText(children)}</h6>,
+        p: ({ children }) => <p className="md-p">{processStyledText(children)}</p>,
+        li: ({ children }) => <li className="md-li">{processStyledText(children)}</li>,
         blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
         code: ({ inline, children }) => {
           if (inline) {
@@ -776,17 +773,15 @@ function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReve
         },
         pre: ({ children }) => <pre className="md-pre">{children}</pre>,
         a: ({ href, children }) => <a href={href} className="md-link" target="_blank" rel="noopener noreferrer">{children}</a>,
-        strong: ({ children }) => <strong>{renderMaskedText(String(children))}</strong>,
-        em: ({ children }) => <em>{renderMaskedText(String(children))}</em>,
+        strong: ({ children }) => <strong>{processStyledText(children)}</strong>,
+        em: ({ children }) => <em>{processStyledText(children)}</em>,
         table: ({ children }) => <table className="md-table">{children}</table>,
         thead: ({ children }) => <thead className="md-thead">{children}</thead>,
         tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
         tr: ({ children }) => <tr className="md-tr">{children}</tr>,
-        th: ({ children }) => <th className="md-th">{children}</th>,
-        td: ({ children }) => <td className="md-td">{children}</td>,
+        th: ({ children }) => <th className="md-th">{processStyledText(children)}</th>,
+        td: ({ children }) => <td className="md-td">{processStyledText(children)}</td>,
         hr: () => <hr className="md-hr" />,
-        // 直接传递文本不过滤
-        text: ({ children }) => children,
       }}
     >
       {text}
