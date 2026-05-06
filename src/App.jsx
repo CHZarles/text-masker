@@ -4,6 +4,26 @@ import { initJieba } from './utils/jieba'
 import ReactMarkdown from 'react-markdown'
 import './styles/index.css'
 
+// Check if content is markdown (for dynamic detection)
+function checkMarkdown(content) {
+  const patterns = [
+    /^#{1,6}\s/m,
+    /^\s*[-*+]\s/m,
+    /^\s*\d+\.\s/m,
+    /^\s*>\s/m,
+    /```/,
+    /\*\*[^*]+\*\*/,
+    /__[^_]+__/,
+    /(?<!\*)\*[^*]+\*(?!\*)/,
+    /(?<!_)_[^_]+_(?!_)/,
+    /`[^`]+`/,
+    /\[.+\]\(.+\)/,
+    /^\s*[-*_]{3,}\s*$/m,
+    /\|.+\|/,
+  ]
+  return patterns.some(p => p.test(content))
+}
+
 function App() {
   const [page, setPage] = useState('study')
   const [percentage, setPercentage] = useState(50)
@@ -407,7 +427,7 @@ function App() {
                 )}
 
                 <div className="text-display">
-                  {currentDoc?.isMarkdown && !lineModeEnabled ? (
+                  {(currentDoc?.isMarkdown || checkMarkdown(currentDoc?.content || '')) && !lineModeEnabled ? (
                     <MarkdownRenderer
                       text={originalText}
                       tokens={tokens}
@@ -528,7 +548,7 @@ function App() {
                     }}>
                       <h3 className="doc-name">
                         {doc.name}
-                        {doc.isMarkdown && <span className="md-badge">MD</span>}
+                        {(doc.isMarkdown || checkMarkdown(doc.content)) && <span className="md-badge">MD</span>}
                       </h3>
                       <p className="doc-preview">{doc.content.slice(0, 50)}...</p>
                       <span className="doc-date">
