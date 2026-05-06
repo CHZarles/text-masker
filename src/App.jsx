@@ -427,7 +427,13 @@ function App() {
 
                 <div className="text-display">
                   {(currentDoc?.isMarkdown || checkMarkdown(currentDoc?.content || '')) && !lineModeEnabled ? (
-                    <MarkdownRenderer text={originalText} />
+                    <MarkdownRenderer
+                      text={originalText}
+                      tokens={tokens}
+                      maskedIndices={maskedIndices}
+                      revealedIndices={revealedIndices}
+                      onReveal={revealToken}
+                    />
                   ) : !lineModeEnabled ? (
                     renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
                   ) : showMasked ? (
@@ -670,8 +676,57 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
 }
 
 // 简单Markdown渲染器（不应用掩码）
-// 简单Markdown渲染器（支持基本元素：标题、列表、表格）
-function MarkdownRenderer({ text }) {
+// 简单Markdown渲染器（支持基本元素 + mask）
+function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
+  // 构建token索引映射
+  const tokenIndexMap = new Map()
+  tokens.forEach((token, idx) => {
+    for (let i = token.start; i < token.end; i++) {
+      tokenIndexMap.set(i, idx)
+    }
+  })
+
+  // 渲染带掩码的文本
+  const renderMasked = (content) => {
+    if (!content || typeof content !== 'string') return content
+
+    const elements = []
+    let i = 0
+
+    while (i < content.length) {
+      const idx = tokenIndexMap.get(i)
+      if (idx !== undefined) {
+        const token = tokens[idx]
+        const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
+        if (isMasked) {
+          elements.push(
+            <span key={`m-${idx}`} className="masked-text" onClick={() => onReveal(idx)}>
+              {token.text}
+            </span>
+          )
+        } else {
+          elements.push(<span key={`t-${idx}`}>{token.text}</span>)
+        }
+        i += token.text.length
+      } else {
+        let j = i + 1
+        while (j < content.length && tokenIndexMap.get(j) === undefined) j++
+        elements.push(<span key={`r-${i}`}>{content.slice(i, j)}</span>)
+        i = j
+      }
+    }
+    return elements.length > 0 ? elements : content
+  }
+
+  // 计算行在原文中的起始位置
+  const getLineStart = (lineIndex) => {
+    let pos = 0
+    for (let i = 0; i < lineIndex; i++) {
+      pos += lines[i].length + 1
+    }
+    return pos
+  }
+
   const lines = text.split('\n')
   const elements = []
   let i = 0
@@ -693,7 +748,7 @@ function MarkdownRenderer({ text }) {
       const content = headingMatch[2]
       const Tag = `h${level}`
       elements.push(
-        React.createElement(Tag, { key: `h-${i}`, className: `md-h${level}` }, content)
+        React.createElement(Tag, { key: `h-${i}`, className: `md-h${level}` }, renderMasked(content))
       )
       i++
       continue
@@ -706,7 +761,7 @@ function MarkdownRenderer({ text }) {
       while (i < lines.length) {
         const match = lines[i].trim().match(/^(\d+)\.\s+(.*)/)
         if (match) {
-          listItems.push(<li key={`li-${i}`} className="md-li">{match[2]}</li>)
+          listItems.push(<li key={`li-${i}`} className="md-li">{renderMasked(match[2])}</li>)
           i++
         } else {
           break
@@ -723,7 +778,7 @@ function MarkdownRenderer({ text }) {
       while (i < lines.length) {
         const match = lines[i].trim().match(/^[-*+]\s+(.*)/)
         if (match) {
-          listItems.push(<li key={`li-${i}`} className="md-li">{match[1]}</li>)
+          listItems.push(<li key={`li-${i}`} className="md-li">{renderMasked(match[1])}</li>)
           i++
         } else {
           break
@@ -751,8 +806,8 @@ function MarkdownRenderer({ text }) {
                 <tr key={`tr-${i}-${ri}`} className="md-tr">
                   {row.split('|').filter((_, ci, arr) => ci > 0 && ci < arr.length - 1).map((cell, ci) => (
                     ri === 0
-                      ? <th key={`th-${i}-${ri}-${ci}`} className="md-th">{cell.trim()}</th>
-                      : <td key={`td-${i}-${ri}-${ci}`} className="md-td">{cell.trim()}</td>
+                      ? <th key={`th-${i}-${ri}-${ci}`} className="md-th">{renderMasked(cell.trim())}</th>
+                      : <td key={`td-${i}-${ri}-${ci}`} className="md-td">{renderMasked(cell.trim())}</td>
                   ))}
                 </tr>
               ))}
@@ -768,7 +823,7 @@ function MarkdownRenderer({ text }) {
       const content = trimmed.replace(/^>\s*/, '')
       elements.push(
         <blockquote key={`bq-${i}`} className="md-blockquote">
-          {content}
+          {renderMasked(content)}
         </blockquote>
       )
       i++
@@ -786,7 +841,7 @@ function MarkdownRenderer({ text }) {
     if (trimmed !== '') {
       elements.push(
         <p key={`p-${i}`} className="md-p">
-          {line}
+          {renderMasked(line)}
         </p>
       )
     } else {
