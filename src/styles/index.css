@@ -1105,3 +1105,23 @@ body {
   border-top: 1px solid var(--gray-300);
   margin: 1em 0;
 }
+
+.md-paragraph {
+  margin: 0.6em 0;
+  line-height: 1.7;
+}
+
+.md-list {
+  margin: 0.5em 0;
+  padding-left: 1.5em;
+}
+
+.md-list-item {
+  margin: 0.3em 0;
+  line-height: 1.6;
+}
+
+.md-table-wrapper {
+  overflow-x: auto;
+  margin: 0.5em 0;
+}
