@@ -101,6 +101,20 @@ body {
   font-weight: 600;
 }
 
+.nav-btn-random {
+  margin-top: 8px;
+  background: var(--gray-100);
+}
+
+.nav-btn-random:hover:not(:disabled) {
+  background: var(--gray-200);
+}
+
+.nav-btn-random:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 .sidebar-divider {
   width: 32px;
   height: 1px;

@@ -246,6 +246,16 @@ function App() {
     }
   }
 
+  const handleRandomDoc = () => {
+    if (documents.length < 2) return
+    const otherDocs = documents.filter(d => d.id !== currentDocId)
+    if (otherDocs.length === 0) return
+    const randomDoc = otherDocs[Math.floor(Math.random() * otherDocs.length)]
+    selectDocument(randomDoc.id)
+    setPage('study')
+    applyMask(percentage)
+  }
+
   return (
     <div className="app">
       <aside className="sidebar">
@@ -269,6 +279,14 @@ function App() {
             onClick={() => setPage('documents')}
           >
             文档
+          </button>
+          <button
+            className="nav-btn nav-btn-random"
+            onClick={handleRandomDoc}
+            disabled={documents.length < 2}
+            title="随机切换文档"
+          >
+            随机
           </button>
           <button
             className={`nav-btn ${page === 'settings' ? 'active' : ''}`}
