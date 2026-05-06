@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useMasker } from './hooks/useMasker'
 import { initJieba } from './utils/jieba'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './styles/index.css'
 
 // Check if content is markdown (for dynamic detection)
@@ -746,6 +747,7 @@ function processMaskedContent(children, tokens, maskedIndices, revealedIndices, 
 function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
   return (
     <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => <h1 className="md-h1">{processMaskedContent(children, tokens, maskedIndices, revealedIndices, onReveal)}</h1>,
         h2: ({ children }) => <h2 className="md-h2">{processMaskedContent(children, tokens, maskedIndices, revealedIndices, onReveal)}</h2>,
