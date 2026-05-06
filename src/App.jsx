@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useMasker } from './hooks/useMasker'
 import { initJieba } from './utils/jieba'
 import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import './styles/index.css'
 
 // Check if content is markdown (for dynamic detection)
@@ -854,6 +855,7 @@ function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices
     <div className="md-content">
       <ReactMarkdown
         sourcePos
+        remarkPlugins={[remarkGfm]}
         components={{
           p: ({ node, children }) => {
             const pos = node?.position?.start?.offset
