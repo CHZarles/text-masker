@@ -675,188 +675,212 @@ function renderLineTokens(line, lineTokenIndices, lineStart, maskedIndices, reve
   return elements
 }
 
-// 在text中查找token位置
-function findTokenPosition(text, tokenText, startFrom = 0) {
-  return text.indexOf(tokenText, startFrom)
-}
-
-// 渲染带掩码的文本片段
-function renderMaskedSegment(segment, tokens, maskedIndices, revealedIndices, onReveal, tokenSet) {
-  const elements = []
-  let lastPos = 0
-
-  tokens.forEach((token, tokenIdx) => {
-    if (tokenSet && !tokenSet.has(tokenIdx)) return
-
-    const tokenText = token.text
-    const tokenPos = findTokenPosition(segment, tokenText, lastPos)
-    if (tokenPos === -1) return
-
-    // 中间的非token部分
-    if (tokenPos > lastPos) {
-      elements.push(
-        <span key={`raw-${lastPos}`}>{segment.slice(lastPos, tokenPos)}</span>
-      )
+// Markdown渲染器（使用react-markdown + 自定义掩码）
+function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
+  // 创建一个tokens的索引用于快速查找
+  const tokenIndexMap = new Map()
+  tokens.forEach((token, idx) => {
+    for (let i = token.start; i < token.end; i++) {
+      tokenIndexMap.set(i, idx)
     }
-
-    // 这个token
-    const isMasked = maskedIndices.has(tokenIdx)
-    const isRevealed = revealedIndices.has(tokenIdx)
-
-    if (isMasked && !isRevealed) {
-      elements.push(
-        <span
-          key={`mask-${tokenIdx}`}
-          className="masked-text"
-          onClick={() => onReveal(tokenIdx)}
-        >
-          {tokenText}
-        </span>
-      )
-    } else {
-      elements.push(
-        <span key={`text-${tokenIdx}`}>{tokenText}</span>
-      )
-    }
-
-    lastPos = tokenPos + tokenText.length
   })
 
-  // 剩余部分
-  if (lastPos < segment.length) {
-    elements.push(
-      <span key={`raw-end`}>{segment.slice(lastPos)}</span>
-    )
+  // 判断一个字符位置是否在masked的token中
+  const isPositionMasked = (pos) => {
+    const idx = tokenIndexMap.get(pos)
+    if (idx === undefined) return false
+    return maskedIndices.has(idx) && !revealedIndices.has(idx)
   }
 
-  return elements.length > 0 ? elements : segment
-}
+  // 获取一个token的显示文本
+  const getTokenDisplay = (token, idx) => {
+    const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
+    return { text: token.text, isMasked }
+  }
 
-// Markdown渲染器
-function MarkdownRenderer({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
-  // 解析markdown结构
+  // 渲染带掩码的文本
+  const renderMaskedText = (textContent) => {
+    if (!textContent) return null
+
+    const result = []
+    let i = 0
+
+    while (i < textContent.length) {
+      const idx = tokenIndexMap.get(i)
+      if (idx !== undefined) {
+        const token = tokens[idx]
+        const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
+
+        if (isMasked) {
+          result.push(
+            <span key={`m-${i}`} className="masked-text" onClick={() => onReveal(idx)}>
+              {token.text}
+            </span>
+          )
+        } else {
+          result.push(<span key={`t-${i}`}>{token.text}</span>)
+        }
+        i += token.text.length
+      } else {
+        // 找到下一个token位置
+        let j = i + 1
+        while (j < textContent.length && tokenIndexMap.get(j) === undefined) {
+          j++
+        }
+        result.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
+        i = j
+      }
+    }
+
+    return result
+  }
+
+  // 解析并渲染markdown
   const lines = text.split('\n')
   const elements = []
+  let i = 0
 
-  lines.forEach((line, idx) => {
+  while (i < lines.length) {
+    const line = lines[i]
     const trimmed = line.trim()
 
+    // 跳过表格分隔行
+    if (/^[\s]*[-| :]+[\s]*$/.test(trimmed)) {
+      i++
+      continue
+    }
+
     // 标题
-    if (/^#{1,6}\s/.test(trimmed)) {
-      const level = trimmed.match(/^(#{1,6})/)[1].length
-      const content = line.replace(/^#{1,6}\s/, '')
-      const HeadingTag = `h${level}`
+    const headingMatch = trimmed.match(/^(#{1,6})\s+(.*)/)
+    if (headingMatch) {
+      const level = headingMatch[1].length
+      const content = headingMatch[2]
+      const Tag = `h${level}`
       elements.push(
-        React.createElement(HeadingTag, { key: `h-${idx}`, className: `md-h${level}` },
-          renderMaskedSegment(content, tokens, maskedIndices, revealedIndices, onReveal)
+        React.createElement(Tag, { key: `h-${i}`, className: `md-h${level}` },
+          renderMaskedText(content)
         )
       )
+      i++
+      continue
     }
-    // 无序列表
-    else if (/^[\s]*[-*+]\s/.test(trimmed)) {
-      const content = line.replace(/^[\s]*[-*+]\s/, '')
-      elements.push(
-        <li key={`li-${idx}`} className="md-li">
-          {renderMaskedSegment(content, tokens, maskedIndices, revealedIndices, onReveal)}
-        </li>
-      )
-    }
+
     // 有序列表
-    else if (/^[\s]*\d+\.\s/.test(trimmed)) {
-      const content = line.replace(/^[\s]*\d+\.\s/, '')
+    const olMatch = trimmed.match(/^(\d+)\.\s+(.*)/)
+    if (olMatch) {
+      const content = olMatch[2]
       elements.push(
-        <li key={`li-${idx}`} className="md-li">
-          {renderMaskedSegment(content, tokens, maskedIndices, revealedIndices, onReveal)}
+        <li key={`li-${i}`} className="md-li">
+          {renderMaskedText(content)}
         </li>
       )
+      // 继续收集后续列表项
+      i++
+      while (i < lines.length) {
+        const nextMatch = lines[i].trim().match(/^(\d+)\.\s+(.*)/)
+        if (nextMatch) {
+          elements.push(
+            <li key={`li-${i}`} className="md-li">
+              {renderMaskedText(nextMatch[2])}
+            </li>
+          )
+          i++
+        } else {
+          break
+        }
+      }
+      continue
     }
-    // 引用
-    else if (/^>\s/.test(trimmed)) {
-      const content = line.replace(/^>\s/, '')
-      elements.push(
-        <blockquote key={`bq-${idx}`} className="md-blockquote">
-          {renderMaskedSegment(content, tokens, maskedIndices, revealedIndices, onReveal)}
-        </blockquote>
-      )
-    }
-    // 分割线
-    else if (/^[\s]*[-*_]{3,}$/.test(trimmed)) {
-      elements.push(<hr key={`hr-${idx}`} className="md-hr" />)
-    }
-    // 表格（简化处理）
-    else if (/^\|/.test(trimmed)) {
-      // 检测是否为表格行
-      const isTableRow = trimmed.split('|').filter(c => c.trim() && !/^[-:]+$/.test(c.trim())).length > 0
-      if (isTableRow) {
-        const cells = trimmed.split('|').filter((_, i, arr) => i > 0 && i < arr.length - 1)
-        const isHeader = lines[idx + 1] && /^[\s]*[-| :]+\s*$/.test(lines[idx + 1])
 
+    // 无序列表
+    const ulMatch = trimmed.match(/^[-*+]\s+(.*)/)
+    if (ulMatch) {
+      elements.push(
+        <li key={`li-${i}`} className="md-li">
+          {renderMaskedText(ulMatch[1])}
+        </li>
+      )
+      i++
+      while (i < lines.length) {
+        const nextMatch = lines[i].trim().match(/^[-*+]\s+(.*)/)
+        if (nextMatch) {
+          elements.push(
+            <li key={`li-${i}`} className="md-li">
+              {renderMaskedText(nextMatch[1])}
+            </li>
+          )
+          i++
+        } else {
+          break
+        }
+      }
+      continue
+    }
+
+    // 表格
+    if (/^\|/.test(trimmed)) {
+      const tableLines = []
+      while (i < lines.length && /^\|/.test(lines[i].trim())) {
+        const row = lines[i].trim()
+        if (!/^[\s]*[-| :]+\s*$/.test(row)) {
+          tableLines.push(row)
+        }
+        i++
+      }
+      if (tableLines.length > 0) {
         elements.push(
-          <tr key={`tr-${idx}`} className="md-tr">
-            {cells.map((cell, ci) => {
-              const Tag = isHeader ? 'th' : 'td'
-              return (
-                <Tag key={`td-${idx}-${ci}`} className={`md-${Tag}`}>
-                  {renderMaskedSegment(cell.trim(), tokens, maskedIndices, revealedIndices, onReveal)}
-                </Tag>
-              )
-            })}
-          </tr>
-        )
-      } else {
-        // 分隔符行，跳过
-      }
-    }
-    // 空行
-    else if (trimmed === '') {
-      elements.push(<div key={`empty-${idx}`} className="md-spacer" />)
-    }
-    // 普通段落
-    else {
-      elements.push(
-        <p key={`p-${idx}`} className="md-p">
-          {renderMaskedSegment(line, tokens, maskedIndices, revealedIndices, onReveal)}
-        </p>
-      )
-    }
-  })
-
-  // 包装表格
-  const wrappedElements = []
-  let inTable = false
-  let tableRows = []
-  let tableStartIdx = 0
-
-  elements.forEach((el, idx) => {
-    if (el?.props?.className === 'md-tr') {
-      if (!inTable) {
-        inTable = true
-        tableStartIdx = idx
-      }
-      tableRows.push(el)
-    } else {
-      if (inTable) {
-        wrappedElements.push(
-          <table key={`table-${tableStartIdx}`} className="md-table">
-            <tbody>{tableRows}</tbody>
+          <table key={`table-${i}`} className="md-table">
+            <tbody>
+              {tableLines.map((row, ri) => (
+                <tr key={`tr-${i}-${ri}`} className="md-tr">
+                  {row.split('|').filter((_, ci, arr) => ci > 0 && ci < arr.length - 1).map((cell, ci) => (
+                    ri === 0
+                      ? <th key={`th-${i}-${ri}-${ci}`} className="md-th">{renderMaskedText(cell.trim())}</th>
+                      : <td key={`td-${i}-${ri}-${ci}`} className="md-td">{renderMaskedText(cell.trim())}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
           </table>
         )
-        tableRows = []
-        inTable = false
       }
-      wrappedElements.push(el)
+      continue
     }
-  })
 
-  if (inTable) {
-    wrappedElements.push(
-      <table key={`table-${tableStartIdx}`} className="md-table">
-        <tbody>{tableRows}</tbody>
-      </table>
-    )
+    // 引用
+    if (/^>\s/.test(trimmed)) {
+      const content = trimmed.replace(/^>\s*/, '')
+      elements.push(
+        <blockquote key={`bq-${i}`} className="md-blockquote">
+          {renderMaskedText(content)}
+        </blockquote>
+      )
+      i++
+      continue
+    }
+
+    // 分割线
+    if (/^[\s]*[-*_]{3,}[\s]*$/.test(trimmed)) {
+      elements.push(<hr key={`hr-${i}`} className="md-hr" />)
+      i++
+      continue
+    }
+
+    // 普通段落
+    if (trimmed !== '') {
+      elements.push(
+        <p key={`p-${i}`} className="md-p">
+          {renderMaskedText(line)}
+        </p>
+      )
+    } else {
+      // 空行
+      elements.push(<div key={`empty-${i}`} style={{ height: '0.5em' }} />)
+    }
+    i++
   }
 
-  return <div className="md-content">{wrappedElements}</div>
+  return <div className="md-content">{elements}</div>
 }
 
 // 普通文本渲染（带掩码）
