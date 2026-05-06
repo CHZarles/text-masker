@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useMasker } from './hooks/useMasker'
 import { initJieba } from './utils/jieba'
+import ReactMarkdown from 'react-markdown'
 import './styles/index.css'
 
 // Check if content is markdown (for dynamic detection)
@@ -427,7 +428,13 @@ function App() {
 
                 <div className="text-display">
                   {(currentDoc?.isMarkdown || checkMarkdown(currentDoc?.content || '')) && !lineModeEnabled ? (
-                    <MarkdownRenderer text={originalText} />
+                    <MarkdownRendererWithMask
+                      text={originalText}
+                      tokens={tokens}
+                      maskedIndices={maskedIndices}
+                      revealedIndices={revealedIndices}
+                      onReveal={revealToken}
+                    />
                   ) : !lineModeEnabled ? (
                     renderText(originalText, tokens, maskedIndices, revealedIndices, revealToken)
                   ) : showMasked ? (
@@ -795,6 +802,126 @@ function MarkdownRenderer({ text }) {
   }
 
   return <div className="md-content">{elements}</div>
+}
+
+// Markdown渲染器（带掩码）- 使用react-markdown
+function MarkdownRendererWithMask({ text, tokens, maskedIndices, revealedIndices, onReveal }) {
+  // 构建token索引映射：position -> tokenIndex
+  const tokenIndexMap = new Map()
+  tokens.forEach((token, idx) => {
+    for (let i = token.start; i < token.end; i++) {
+      tokenIndexMap.set(i, idx)
+    }
+  })
+
+  // 渲染带掩码的文本
+  const renderMaskedText = (textContent) => {
+    if (!textContent || typeof textContent !== 'string') return textContent
+
+    const elements = []
+    let i = 0
+
+    while (i < textContent.length) {
+      const idx = tokenIndexMap.get(i)
+      if (idx !== undefined) {
+        const token = tokens[idx]
+        const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
+
+        if (isMasked) {
+          elements.push(
+            <span key={`m-${idx}`} className="masked-text" onClick={() => onReveal(idx)}>
+              {token.text}
+            </span>
+          )
+        } else {
+          elements.push(<span key={`t-${idx}`}>{token.text}</span>)
+        }
+        i += token.text.length
+      } else {
+        let j = i + 1
+        while (j < textContent.length && tokenIndexMap.get(j) === undefined) {
+          j++
+        }
+        elements.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
+        i = j
+      }
+    }
+
+    return elements.length > 0 ? elements : textContent
+  }
+
+  return (
+    <div className="md-content">
+      <ReactMarkdown
+        components={{
+          // 直接渲染文本，react-markdown会自动处理结构
+          p: ({ children }) => <p className="md-p">{children}</p>,
+          h1: ({ children }) => <h1 className="md-h1">{children}</h1>,
+          h2: ({ children }) => <h2 className="md-h2">{children}</h2>,
+          h3: ({ children }) => <h3 className="md-h3">{children}</h3>,
+          h4: ({ children }) => <h4 className="md-h4">{children}</h4>,
+          h5: ({ children }) => <h5 className="md-h5">{children}</h5>,
+          h6: ({ children }) => <h6 className="md-h6">{children}</h6>,
+          li: ({ children }) => <li className="md-li">{children}</li>,
+          blockquote: ({ children }) => <blockquote className="md-blockquote">{children}</blockquote>,
+          code: ({ inline, children }) => inline
+            ? <code className="md-code-inline">{children}</code>
+            : <code className="md-code-block">{children}</code>,
+          pre: ({ children }) => <pre className="md-pre">{children}</pre>,
+          table: ({ children }) => <table className="md-table">{children}</table>,
+          thead: ({ children }) => <thead className="md-thead">{children}</thead>,
+          tbody: ({ children }) => <tbody className="md-tbody">{children}</tbody>,
+          tr: ({ children }) => <tr className="md-tr">{children}</tr>,
+          th: ({ children }) => <th className="md-th">{children}</th>,
+          td: ({ children }) => <td className="md-td">{children}</td>,
+          hr: () => <hr className="md-hr" />,
+          // 文本节点应用掩码
+          text: ({ node, children }) => {
+            // 获取文本在原文中的位置
+            const textContent = String(children)
+            if (!textContent || textContent.length === 0) return children
+
+            // 找到这个文本节点在原文中的起始位置
+            const sourceStart = node?.position?.start?.offset ?? 0
+            const elements = []
+            let i = 0
+
+            while (i < textContent.length) {
+              const globalPos = sourceStart + i
+              const idx = tokenIndexMap.get(globalPos)
+
+              if (idx !== undefined) {
+                const token = tokens[idx]
+                const isMasked = maskedIndices.has(idx) && !revealedIndices.has(idx)
+
+                if (isMasked) {
+                  elements.push(
+                    <span key={`m-${idx}`} className="masked-text" onClick={() => onReveal(idx)}>
+                      {token.text}
+                    </span>
+                  )
+                } else {
+                  elements.push(<span key={`t-${idx}`}>{token.text}</span>)
+                }
+                i += token.text.length
+              } else {
+                let j = i + 1
+                while (j < textContent.length && tokenIndexMap.get(sourceStart + j) === undefined) {
+                  j++
+                }
+                elements.push(<span key={`r-${i}`}>{textContent.slice(i, j)}</span>)
+                i = j
+              }
+            }
+
+            return elements.length > 0 ? elements : children
+          }
+        }}
+      >
+        {text}
+      </ReactMarkdown>
+    </div>
+  )
 }
 
 // 普通文本渲染（带掩码）
