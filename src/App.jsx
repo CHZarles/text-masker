@@ -270,32 +270,15 @@ function App() {
           >
             文档
           </button>
+          <button
+            className={`nav-btn ${page === 'settings' ? 'active' : ''}`}
+            onClick={() => setPage('settings')}
+          >
+            设置
+          </button>
         </nav>
 
-        <div className="sidebar-divider" />
-
-        <div className="sidebar-sync">
-          <button className="sync-btn" onClick={handlePickFolder} title="选择同步文件夹">
-            文件夹
-          </button>
-          <button className="sync-btn" onClick={handleSaveToFolder} title="下载到文件夹">
-            下载
-          </button>
-          <button className="sync-btn" onClick={handleLoadFromFolder} title="从文件夹上传">
-            上传
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".json"
-            style={{ display: 'none' }}
-            onChange={handleFileChange}
-          />
-          {importMessage && (
-            <span className="import-message">{importMessage}</span>
-          )}
-        </div>
-
+        
         <div className="sidebar-controls">
           <div className="percentage-control">
             <span className="percentage-value">{percentage}%</span>
@@ -308,14 +291,6 @@ function App() {
               className="percentage-slider"
             />
           </div>
-          <label className="toggle-control">
-            <input
-              type="checkbox"
-              checked={maskPunctuation}
-              onChange={(e) => setMaskPunctuation(e.target.checked)}
-            />
-            <span>掩码标点</span>
-          </label>
           <button
             className="mask-btn"
             onClick={handleMask}
@@ -447,6 +422,61 @@ function App() {
                 取消
               </button>
             </div>
+          </div>
+        ) : page === 'settings' ? (
+          <div className="settings-area">
+            <h2 className="settings-title">设置</h2>
+
+            <div className="settings-section">
+              <h3 className="settings-section-title">背诵选项</h3>
+              <label className="settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={maskPunctuation}
+                  onChange={(e) => setMaskPunctuation(e.target.checked)}
+                />
+                <span className="toggle-label">掩码标点符号</span>
+              </label>
+            </div>
+
+            <div className="settings-section">
+              <h3 className="settings-section-title">文件同步</h3>
+              <p className="settings-desc">使用浏览器原生文件夹同步功能，需要 Chrome/Edge 浏览器支持。</p>
+              <div className="settings-actions">
+                <button className="settings-btn" onClick={handlePickFolder}>
+                  选择文件夹
+                </button>
+                <button className="settings-btn" onClick={handleSaveToFolder}>
+                  下载到文件夹
+                </button>
+                <button className="settings-btn" onClick={handleLoadFromFolder}>
+                  从文件夹上传
+                </button>
+              </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                style={{ display: 'none' }}
+                onChange={handleFileChange}
+              />
+            </div>
+
+            <div className="settings-section">
+              <h3 className="settings-section-title">导入/导出</h3>
+              <div className="settings-actions">
+                <button className="settings-btn" onClick={handleExport}>
+                  导出JSON
+                </button>
+                <button className="settings-btn" onClick={handleImportClick}>
+                  导入JSON
+                </button>
+              </div>
+            </div>
+
+            {importMessage && (
+              <div className="settings-message">{importMessage}</div>
+            )}
           </div>
         ) : (
           <div className="documents-area">
