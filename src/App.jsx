@@ -45,6 +45,8 @@ function App() {
     setSelectedLines,
     showMasked,
     setShowMasked,
+    maskPunctuation,
+    setMaskPunctuation,
     exportData,
     importData,
     saveToFolder,
@@ -306,6 +308,14 @@ function App() {
               className="percentage-slider"
             />
           </div>
+          <label className="toggle-control">
+            <input
+              type="checkbox"
+              checked={maskPunctuation}
+              onChange={(e) => setMaskPunctuation(e.target.checked)}
+            />
+            <span>掩码标点</span>
+          </label>
           <button
             className="mask-btn"
             onClick={handleMask}

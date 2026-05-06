@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
-import { initJieba, tokenizeText as jiebaTokenize } from '../utils/jieba'
+import { initJieba, tokenizeText as jiebaTokenize, isPunctuation } from '../utils/jieba'
 
 const STORAGE_KEY = 'text-masker-documents'
 const STATE_KEY = 'text-masker-state'
@@ -68,6 +68,10 @@ export function useMasker() {
   const [showMasked, setShowMasked] = useState(() => {
     const state = getStorageItem(STATE_KEY, {})
     return state.showMasked ?? false
+  })
+  const [maskPunctuation, setMaskPunctuation] = useState(() => {
+    const state = getStorageItem(STATE_KEY, {})
+    return state.maskPunctuation ?? false
   })
 
   const currentDoc = documents.find(d => d.id === currentDocId)
@@ -170,8 +174,13 @@ export function useMasker() {
   const applyMask = useCallback((percentage) => {
     if (tokens.length === 0) return
 
-    // Filter out space tokens - we don't want to mask spaces
-    const maskableTokens = tokens.filter(t => !/^\s+$/.test(t.text))
+    // Filter out non-maskable tokens (whitespace, and punctuation when disabled)
+    const isMaskable = (t) => {
+      if (/^\s+$/.test(t.text)) return false
+      if (!maskPunctuation && isPunctuation(t.text)) return false
+      return true
+    }
+    const maskableTokens = tokens.filter(isMaskable)
     if (maskableTokens.length === 0) return
 
     const totalCount = maskableTokens.length
@@ -189,7 +198,7 @@ export function useMasker() {
     )
     setMaskedIndices(newMaskedIndices)
     setRevealedIndices(new Set())
-  }, [tokens])
+  }, [tokens, maskPunctuation])
 
   const revealToken = useCallback((index) => {
     setRevealedIndices(prev => {
@@ -378,6 +387,12 @@ export function useMasker() {
       pos += lines[i].length + 1 // +1 for newline (except last line)
     }
 
+    const isMaskable = (t) => {
+      if (/^\s+$/.test(t.text)) return false
+      if (!maskPunctuation && isPunctuation(t.text)) return false
+      return true
+    }
+
     const allLineTokens = []
 
     lines.forEach((line, lineIdx) => {
@@ -386,7 +401,7 @@ export function useMasker() {
         const lineEnd = lineStart + line.length
 
         const lineTokens = tokens.filter(t =>
-          t.start >= lineStart && t.end <= lineEnd && !/^\s+$/.test(t.text)
+          t.start >= lineStart && t.end <= lineEnd && isMaskable(t)
         )
         allLineTokens.push(...lineTokens.map(t => tokens.indexOf(t)))
       }
@@ -401,7 +416,7 @@ export function useMasker() {
 
     setMaskedIndices(toMask)
     setRevealedIndices(new Set())
-  }, [tokens])
+  }, [tokens, maskPunctuation])
 
   // Save UI state to localStorage
   useEffect(() => {
@@ -410,14 +425,15 @@ export function useMasker() {
       selectedLines: [...selectedLines],
       showMasked,
       currentDocId,
-      maskedIndices: [...maskedIndices]
+      maskedIndices: [...maskedIndices],
+      maskPunctuation
     }
     try {
       localStorage.setItem(STATE_KEY, JSON.stringify(state))
     } catch (e) {
       console.error('Failed to save state:', e)
     }
-  }, [lineModeEnabled, selectedLines, showMasked, currentDocId, maskedIndices])
+  }, [lineModeEnabled, selectedLines, showMasked, currentDocId, maskedIndices, maskPunctuation])
 
   // Restore UI state and document state when document changes
   useEffect(() => {
@@ -466,6 +482,8 @@ export function useMasker() {
     setSelectedLines,
     showMasked,
     setShowMasked,
+    maskPunctuation,
+    setMaskPunctuation,
     createDocument,
     updateDocument,
     deleteDocument,
