@@ -3,11 +3,14 @@ import init, { cut } from 'jieba-wasm'
 let jiebaReady = false
 let jiebaInitPromise = null
 
-// Common punctuation pattern used for filtering
-const PUNCT_REGEX = /[\u3002,\uFF0C,\uFF01,\uFF1F,\uFF1B,\uFF1A\u0021-\u002F\u003A-\u0040\u005B-\u0060\u007B-\u007E]/
+// ASCII printable characters (33-126), excluding alphanumeric
+// This includes: ! " # $ % & ' ( ) * + , - . / : ; < = > ? @ [ \ ] ^ _ ` { | } ~
+// Plus common Chinese punctuation
+const PUNCT_REGEX = /[\u0021-\u007E\u3002\uFF0C\uFF01\uFF1F\uFF1B\uFF1A]/
 
 export function isPunctuation(text) {
-  return PUNCT_REGEX.test(text)
+  // Must be punctuation/symbol and not contain letters, digits, or Chinese characters
+  return PUNCT_REGEX.test(text) && !/[A-Za-z0-9\u4e00-\u9fa5]/.test(text)
 }
 
 export async function initJieba() {
@@ -38,10 +41,12 @@ export function tokenizeText(text) {
     let currentWord = ''
     let wordStart = 0
 
+    const isPunct = (char) => PUNCT_REGEX.test(char) && !/[A-Za-z0-9\u4e00-\u9fa5]/.test(char)
+
     for (let i = 0; i < text.length; i++) {
       const char = text[i]
       const isChinese = char >= '\u4e00' && char <= '\u9fa5'
-      const isPunctuation = PUNCT_REGEX.test(char)
+      const isPunctuation = isPunct(char)
       const isWhitespace = /\s/.test(char)
 
       let charType = 'other'
