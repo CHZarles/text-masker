@@ -169,11 +169,24 @@ export function useMasker() {
 
   const applyMask = useCallback((percentage) => {
     if (tokens.length === 0) return
-    const totalCount = tokens.length
+
+    // Filter out space tokens - we don't want to mask spaces
+    const maskableTokens = tokens.filter(t => !/^\s+$/.test(t.text))
+    if (maskableTokens.length === 0) return
+
+    const totalCount = maskableTokens.length
     const maskCount = Math.round(totalCount * (percentage / 100))
-    const availableIndices = [...Array(totalCount).keys()]
+    const availableIndices = maskableTokens.map(t => t.id)
     const shuffled = availableIndices.sort(() => Math.random() - 0.5)
-    const newMaskedIndices = new Set(shuffled.slice(0, maskCount))
+    const selectedToMask = new Set(shuffled.slice(0, maskCount))
+
+    // Convert back to original token indices
+    const newMaskedIndices = new Set(
+      tokens
+        .map((t, i) => ({ id: t.id, idx: i }))
+        .filter(t => selectedToMask.has(t.id))
+        .map(t => t.idx)
+    )
     setMaskedIndices(newMaskedIndices)
     setRevealedIndices(new Set())
   }, [tokens])
@@ -373,7 +386,7 @@ export function useMasker() {
         const lineEnd = lineStart + line.length
 
         const lineTokens = tokens.filter(t =>
-          t.start >= lineStart && t.end <= lineEnd
+          t.start >= lineStart && t.end <= lineEnd && !/^\s+$/.test(t.text)
         )
         allLineTokens.push(...lineTokens.map(t => tokens.indexOf(t)))
       }
