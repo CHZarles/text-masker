@@ -16,25 +16,31 @@ const getStorageItem = (key, fallback = null) => {
 }
 
 function isMarkdown(text) {
-  const lines = text.split('\n')
-  let score = 0
+  // Simple detection: any markdown syntax present
+  if (!text || text.trim().length === 0) return false
 
-  for (const line of lines) {
-    const trimmed = line.trim()
-    if (/^#{1,6}\s/.test(trimmed)) score += 2
-    if (/^[-*+]\s/.test(trimmed)) score += 1
-    if (/^\d+\.\s/.test(trimmed)) score += 1
-    if (/^>\s/.test(trimmed)) score += 1
-    if (/^```/.test(trimmed)) score += 2
-    if (/\*\*[^*]+\*\*/.test(trimmed)) score += 1
-    if (/(?<!\*)\*[^*]+\*(?!\*)/.test(trimmed)) score += 1
-    if (/`[^`]+`/.test(trimmed)) score += 1
-    if (/\[.+\]\(.+\)/.test(trimmed)) score += 1
-    if (/^[-*_]{3,}$/.test(trimmed)) score += 1
-    if (/^\|.+\|$/.test(trimmed)) score += 2
+  // Check for common markdown patterns
+  const markdownPatterns = [
+    /^#{1,6}\s/m,           // headings
+    /^\s*[-*+]\s/m,         // unordered lists
+    /^\s*\d+\.\s/m,        // ordered lists
+    /^\s*>\s/m,             // blockquotes
+    /```/,                   // code blocks
+    /\*\*[^*]+\*\*/,          // bold
+    /__[^_]+__/,            // bold alt
+    /(?<!\*)\*[^*]+\*(?!\*)/, // italic
+    /(?<!_)_[^_]+_(?!_)/,   // italic alt
+    /`[^`]+`/,              // inline code
+    /\[.+\]\(.+\)/,         // links
+    /^\s*[-*_]{3,}\s*$/m,   // horizontal rules
+  ]
+
+  let matchCount = 0
+  for (const pattern of markdownPatterns) {
+    if (pattern.test(text)) matchCount++
   }
 
-  return score >= 3 || /```/.test(text)
+  return matchCount >= 1
 }
 
 export function useMasker() {
